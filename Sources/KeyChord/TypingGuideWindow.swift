@@ -137,6 +137,7 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
     private let hintButton = NSButton(title: "Show Hint", target: nil, action: nil)
     private let reviewButton = NSButton(title: "Review Weak Chords", target: nil, action: nil)
     private let referenceButton = NSButton(title: "Show Reference", target: nil, action: nil)
+    private let fullscreenButton = NSButton(title: "Full Screen", target: nil, action: nil)
     private let typingStatus = NSTextField(labelWithString: "Chord typing off · tap right Option to start")
     private let performanceLabel = NSTextField(labelWithString: "")
     private let reviewLabel = NSTextField(wrappingLabelWithString: "")
@@ -152,6 +153,7 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
         w.title = "KeyChord Typing Practice"
         w.isReleasedWhenClosed = false
         w.minSize = NSSize(width: 720, height: 700)
+        w.collectionBehavior.insert(.fullScreenPrimary)
         super.init(window: w)
         w.delegate = self
         buildUI()
@@ -256,9 +258,15 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
         reviewButton.toolTip = "Practice the chords you miss or take longest to recall. Performance is saved locally."
         referenceButton.target = self
         referenceButton.action = #selector(toggleReference)
+        fullscreenButton.target = self
+        fullscreenButton.action = #selector(toggleFullscreen)
+        fullscreenButton.keyEquivalent = "f"
+        fullscreenButton.keyEquivalentModifierMask = [.command, .control]
+        fullscreenButton.toolTip = "Enter or leave full screen (⌃⌘F)."
         let practiceSpacer = NSView()
         practiceSpacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let practiceControls = NSStackView(views: [recallToggle, hintButton, reviewButton, practiceSpacer, referenceButton])
+        let practiceControls = NSStackView(views: [recallToggle, hintButton, reviewButton, practiceSpacer,
+                                                 referenceButton, fullscreenButton])
         practiceControls.orientation = .horizontal
         practiceControls.spacing = 8
         reviewLabel.font = .systemFont(ofSize: 12)
@@ -409,16 +417,12 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
                   inputHeader, inputScroll, keyboardHost, legendLabel] as [NSView] {
             v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -32).isActive = true
         }
-        let contentWidth = stack.widthAnchor.constraint(equalTo: content.widthAnchor)
-        contentWidth.priority = .defaultHigh
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: content.topAnchor),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
-            stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualTo: content.widthAnchor),
-            stack.widthAnchor.constraint(lessThanOrEqualToConstant: 1060),
-            contentWidth,
-            passageScroll.heightAnchor.constraint(equalToConstant: 110),
+            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor),
+            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor),
+            passageScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 110),
             inputScroll.heightAnchor.constraint(equalToConstant: 70),
         ])
     }
@@ -683,6 +687,21 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
     }
 
     // MARK: Focus and keys
+
+    @objc private func toggleFullscreen() {
+        window?.toggleFullScreen(nil)
+        returnToInput()
+    }
+
+    func windowDidEnterFullScreen(_ notification: Notification) {
+        fullscreenButton.title = "Exit Full Screen"
+        returnToInput()
+    }
+
+    func windowDidExitFullScreen(_ notification: Notification) {
+        fullscreenButton.title = "Full Screen"
+        returnToInput()
+    }
 
     func windowDidBecomeKey(_ notification: Notification) {
         promptBeganAt = ProcessInfo.processInfo.systemUptime
