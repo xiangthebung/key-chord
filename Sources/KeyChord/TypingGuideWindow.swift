@@ -388,7 +388,8 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
         let keyboardHost = NSView()
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         keyboardHost.addSubview(keyboard)
-        let keyboardWidth = keyboard.widthAnchor.constraint(equalTo: keyboardHost.widthAnchor)
+        // Prefer a compact diagram without tying the host's maximum width to it.
+        let keyboardWidth = keyboard.widthAnchor.constraint(equalToConstant: 760)
         keyboardWidth.priority = .defaultHigh
         NSLayoutConstraint.activate([
             keyboard.centerXAnchor.constraint(equalTo: keyboardHost.centerXAnchor),
@@ -691,6 +692,12 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
     @objc private func toggleFullscreen() {
         window?.toggleFullScreen(nil)
         returnToInput()
+    }
+
+    func window(_ window: NSWindow, willUseFullScreenContentSize proposedSize: NSSize) -> NSSize {
+        // AppKit can infer a narrow fullscreen size from a compact child view.
+        // Use the display's width while preserving its proposed height and safe area.
+        NSSize(width: window.screen?.frame.width ?? proposedSize.width, height: proposedSize.height)
     }
 
     func windowDidEnterFullScreen(_ notification: Notification) {
