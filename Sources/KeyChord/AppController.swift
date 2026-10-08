@@ -22,6 +22,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var matrixWindow: MatrixScanWindowController?
     private var wiringCheckWindow: WiringCheckWindowController?
     private var guideWindow: TypingGuideWindowController?
+    private var wordPracticeWindow: WordPracticeWindowController?
     private var firstChordWindow: FirstChordWindowController?
     private var editorPracticeWindow: EditorPracticeWindowController?
     private var hardwareCheckWindow: HardwareCheckWindowController?
@@ -38,7 +39,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var permissionTimer: Timer?
     private var stateTimer: Timer?
     /// Each focused local surface owns its own pause. Losing one focus cannot release another's pause.
-    private enum LocalInputOwner: Hashable { case firstChords, probe, matrix, wiring, hardwareCheck, ergonomicTrial }
+    private enum LocalInputOwner: Hashable { case firstChords, wordSprint, probe, matrix, wiring, hardwareCheck, ergonomicTrial }
     private var localInputOwners = Set<LocalInputOwner>()
 
     /// The keyboard type macOS reported at launch (nil: JIS or unknown). Read once, so that typing on an
@@ -447,6 +448,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item("Lessons…", #selector(openCourse)))
         menu.addItem(item("Practice…", #selector(openTypingGuide)))
+        menu.addItem(item("Word Sprint…", #selector(openWordSprint)))
 
         let tools = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
         let toolsMenu = NSMenu()
@@ -612,6 +614,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guide.onEnableOtherApps = { [weak self] in self?.enableOtherAppTyping() }
             guide.onOpenReference = { [weak self] in self?.openManual() }
             guide.onOpenKeyboardTools = { [weak self] in self?.openHardwareCheck() }
+            guide.onWordSprint = { [weak self] in self?.openWordSprint() }
             guide.progress = courseProgress
             installWiring()
             guide.limits = KeyboardLimits(wiringText: store.readWiring(), scanText: store.readMatrixScan(),
@@ -620,6 +623,19 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         updatePracticeState()
         guideWindow?.present()
+    }
+
+    @objc private func openWordSprint() {
+        if wordPracticeWindow == nil {
+            let data = router.engine.data
+            let usable = keyboardLimits(for: data.layout).map { $0.usable(in: data.layout) } ?? { _ in true }
+            let sprint = WordPracticeWindowController(data: data, rolloverLimit: settings.rolloverLimit, usable: usable,
+                globalSuspended: { [weak self] in self?.localInputOwners.contains(.wordSprint) == true })
+            sprint.onLocalFocus = { [weak self] on in self?.setProbeActive(on, owner: .wordSprint) }
+            wordPracticeWindow = sprint
+        }
+        wordPracticeWindow?.tick()
+        wordPracticeWindow?.present()
     }
 
     /// The course runs in the Typing Guide, from where the learner left off.
@@ -788,6 +804,8 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.ergonomicTrialWindow = nil
                 self.editorPracticeWindow?.close()
                 self.editorPracticeWindow = nil
+                self.wordPracticeWindow?.close()
+                self.wordPracticeWindow = nil
                 self.probeWindow?.update(data: outcome.data, rolloverLimit: limit)
                 self.matrixWindow?.update(data: outcome.data)
                 self.overlay?.update(data: outcome.data)

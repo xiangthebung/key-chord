@@ -88,6 +88,12 @@ public final class LocalChordPractice {
         captured = KeySet()
     }
 
+    /// A local exercise may restore the planner's spacing after an ordinary correction or refocus.
+    /// This changes output context without changing the held keys or the chord Undo stack.
+    public func restoreContext(_ context: EngineContext) {
+        router.engine.restore(context)
+    }
+
     public func reset() {
         router = EventRouter(data: data)
         captured = KeySet()

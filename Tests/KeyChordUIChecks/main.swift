@@ -525,4 +525,116 @@ input.insertText("s", replacementRange: input.selectedRange())
 precondition(startButton.isHidden && !permissionButton.isHidden)
 controller.updateTypingState(availability: .available, effectiveMode: .normal, status: "Chord typing is off")
 precondition(!startButton.isHidden && permissionButton.isHidden)
-print("AppKit practice checks passed: \(checkedPassages) passages, \(checkedChords) chords, three keyboards.")
+// Word Sprint drives the real local NSTextView and scoring delegate, with no global events.
+testDefaults.set("english", forKey: "wordSprintVocabulary")
+testDefaults.set("words", forKey: "wordSprintGoal")
+testDefaults.set(10, forKey: "wordSprintWords")
+testDefaults.set(true, forKey: "wordSprintKeyboard")
+var sprintNow = 100.0
+var sprintFocused = true
+var sprintLease = false
+let sprint = WordPracticeWindowController(data: data, defaults: testDefaults, clock: { sprintNow }, seed: { 42 },
+    focus: { sprintFocused }, globalSuspended: { sprintLease })
+sprint.onLocalFocus = { sprintLease = $0 }
+let sprintInput = textViews(sprint.window!.contentView!).compactMap { $0 as? WordPracticeInputView }.first!
+// Optional visual QA renders actual AppKit views, with no visible window or screen capture.
+func sprintSnapshot(_ controller: WordPracticeWindowController, name: String, width: CGFloat = 940) throws {
+    guard let directory = ProcessInfo.processInfo.environment["KEYCHORD_SPRINT_SNAPSHOTS"] else { return }
+    controller.window!.setContentSize(NSSize(width: width, height: 1000))
+    let view = controller.window!.contentView!
+    view.layoutSubtreeIfNeeded()
+    let scroll = view.subviews.compactMap { $0 as? NSScrollView }.first!
+    let document = scroll.documentView!
+    document.layoutSubtreeIfNeeded()
+    let size = NSSize(width: document.bounds.width, height: document.bounds.height)
+    guard size.width > 0, size.height > 0,
+          let bitmap = document.bitmapImageRepForCachingDisplay(in: document.bounds) else { fatalError("empty sprint layout") }
+    document.cacheDisplay(in: document.bounds, to: bitmap)
+    let url = URL(fileURLWithPath: directory).appendingPathComponent(name + ".png")
+    try bitmap.representation(using: .png, properties: [:])!.write(to: url)
+}
+try sprintSnapshot(sprint, name: "ready")
+try sprintSnapshot(sprint, name: "ready-narrow", width: 620)
+sprintInput.refreshFocus()
+precondition(sprintLease && sprintInput.practice.ownsInput && !sprintInput.practice.chordEnabled)
+let sprintWords = sprint.session.targetWords
+sprintInput.insertText("x", replacementRange: sprintInput.selectedRange())
+precondition(sprint.session.startedAt == sprintNow && sprint.session.typedText == "x")
+sprintInput.deleteBackward(nil)
+precondition(sprint.session.typedText.isEmpty && sprint.session.metrics(at: sprintNow).mistakes == 1)
+sprintInput.paste(nil)
+sprintInput.insertText(sprintWords.joined(separator: " "), replacementRange: sprintInput.selectedRange())
+precondition(sprint.session.typedText.isEmpty, "bulk native insertion cannot earn a sprint result")
+for character in sprintWords.joined(separator: " ") {
+    sprintNow += 0.2
+    sprintInput.insertText(String(character), replacementRange: sprintInput.selectedRange())
+}
+precondition(sprint.session.isFinished && !sprintInput.isEditable && !sprintLease)
+precondition(sprint.session.metrics(at: sprintNow).correctWords == 10)
+precondition(sprint.session.metrics(at: sprintNow).accuracy < 100)
+precondition(!sprint.session.samples.isEmpty)
+try sprintSnapshot(sprint, name: "results")
+try sprintSnapshot(sprint, name: "results-narrow", width: 620)
+sprint.retryTest()
+precondition(sprint.session.targetWords == sprintWords && sprintInput.string.isEmpty && sprintInput.isEditable)
+precondition(sprint.session.startedAt == nil && sprint.session.metrics(at: sprintNow).mistakes == 0)
+
+// A delayed timer callback still finishes at the original deadline, including time out of focus.
+testDefaults.set("time", forKey: "wordSprintGoal")
+testDefaults.set(15, forKey: "wordSprintSeconds")
+let timedSprint = WordPracticeWindowController(data: data, defaults: testDefaults, clock: { sprintNow }, seed: { 12 },
+    focus: { sprintFocused })
+let timedInput = textViews(timedSprint.window!.contentView!).compactMap { $0 as? WordPracticeInputView }.first!
+timedInput.insertText("x", replacementRange: timedInput.selectedRange())
+let beganSprint = sprintNow
+sprintFocused = false
+timedInput.relinquishFocus()
+sprintNow += 20
+timedSprint.tick()
+precondition(timedSprint.session.finishedAt == beganSprint + 15 && !timedInput.isEditable)
+
+// Replay the native planner through local key-down/up events, including multi-character word chords.
+testDefaults.set("words", forKey: "wordSprintGoal")
+testDefaults.set(false, forKey: "wordSprintKeyboard")
+sprintFocused = true
+var chordLease = false
+let chordSprint = WordPracticeWindowController(data: data, defaults: testDefaults, clock: { sprintNow }, seed: { 99 },
+    focus: { sprintFocused }, globalSuspended: { chordLease }, wordSource: ["making", "happiest", "tried", "lying", "stopping"])
+chordSprint.onLocalFocus = { chordLease = $0 }
+let chordInput = textViews(chordSprint.window!.contentView!).compactMap { $0 as? WordPracticeInputView }.first!
+chordInput.refreshFocus()
+let sprintText = chordSprint.session.targetWords.joined(separator: " ")
+let sprintPlan = TypingPlanner(data: data, mode: .english).plan(sprintText)
+var refocusedChordPreview = false
+for step in sprintPlan.steps {
+    sprintNow += 0.3
+    switch step.action {
+    case .chord(let names, let shift):
+        let chord = data.layout.keySet(names: names)!
+        if shift { chordInput.process(.modifierDown(code: 56, key: .shift, time: UInt64(sprintNow * 1000))) }
+        for index in chord.indices {
+            chordInput.process(.keyDown(code: data.layout.keys[index].code, isRepeat: false, flags: [], time: UInt64(sprintNow * 1000)))
+        }
+        for index in chord.indices {
+            chordInput.process(.keyUp(code: data.layout.keys[index].code, flags: [], time: UInt64(sprintNow * 1000)))
+        }
+        if shift { chordInput.process(.modifierUp(code: 56, key: .shift, time: UInt64(sprintNow * 1000))) }
+    case .typeNormally(let text):
+        for character in text { chordInput.insertText(String(character), replacementRange: chordInput.selectedRange()) }
+    case .key(let key):
+        if key == .delete { chordInput.deleteBackward(nil) }
+    }
+    if !step.tail.isEmpty && !chordSprint.session.isFinished {
+        sprintFocused = false
+        chordInput.relinquishFocus()
+        precondition(!chordLease)
+        sprintFocused = true
+        chordInput.refreshFocus()
+        refocusedChordPreview = true
+    }
+}
+precondition(chordInput.string == sprintText && chordSprint.session.isFinished, "local chord test must match the target and finish")
+precondition(chordSprint.session.metrics(at: sprintNow).accuracy == 100)
+precondition(refocusedChordPreview, "suffix previews must continue correctly after refocusing")
+precondition(!chordLease)
+print("AppKit practice checks passed: \(checkedPassages) passages, \(checkedChords) chords, three keyboards, Word Sprint keyboard/chord scoring and deadlines.")

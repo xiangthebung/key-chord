@@ -3,14 +3,17 @@ import KeyChordCore
 
 /// An NSTextView receives local NSEvents through the responder chain. It never monitors another
 /// window, requests a permission, posts a system event, or accepts a global output-emitter result.
-final class LocalChordInputView: NSTextView {
+class LocalChordInputView: NSTextView {
     let practice: LocalChordPractice
     var onFocus: ((Bool) -> Void)?
     var onReadinessChanged: (() -> Void)?
     var onOutput: ((LocalChordOutput) -> Void)?
+    var onWillApplyOutput: ((LocalChordOutput) -> Void)?
     var onOrdinaryEdit: (() -> Void)?
     private let focusOverride: (() -> Bool)?
     private var applyingOutput = false
+    /// Local practice adapters can distinguish a multi-character chord from paste or native editing.
+    var isApplyingChordOutput: Bool { applyingOutput }
     private var lease = false
     private var suppressionAvailable: () -> Bool
     var placeholder = "" { didSet { needsDisplay = true } }
@@ -80,6 +83,7 @@ final class LocalChordInputView: NSTextView {
     func process(_ input: RouterInput) -> LocalChordOutput {
         refreshFocus()
         let output = practice.handle(input)
+        onWillApplyOutput?(output)
         if !output.routed.actions.isEmpty { apply(output.routed.actions) }
         onOutput?(output)
         return output

@@ -36,6 +36,8 @@ fi
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/KeyChord" "$APP/Contents/MacOS/KeyChord"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+mkdir -p "$APP/Contents/Resources/WordLists"
+cp Resources/WordLists/README.md Resources/WordLists/COPYING "$APP/Contents/Resources/WordLists/"
 
 codesign --force --options runtime --sign "$SIGN_IDENTITY" \
   --identifier "$BUNDLE_ID" "$APP"

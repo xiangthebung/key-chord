@@ -310,6 +310,7 @@ final class PracticeCourseOverview: NSView {
 final class PracticeLibraryView: NSView {
     var onTopic: ((Int) -> Void)?
     var onListen: (() -> Void)?
+    var onWordSprint: (() -> Void)?
     init(review: NSButton, importButton: NSButton) {
         super.init(frame: .zero)
         let heading = PracticeUI.label(DesignSystem.Labels.sections["practice"]!, size: CGFloat(DesignSystem.Typography.title), weight: .bold)
@@ -327,13 +328,16 @@ final class PracticeLibraryView: NSView {
         }
         let listen = PracticeTopicButton(title: DesignSystem.Labels.sections["listen"]!, detail: "10 learned words",
                                          symbol: "speaker.wave.2") { [weak self] in self?.onListen?() }
+        let sprint = PracticeTopicButton(title: "Word Sprint", detail: "Random words · speed and accuracy", symbol: "speedometer") {
+            [weak self] in self?.onWordSprint?()
+        }
         for button in [review, importButton] {
             button.bezelStyle = .rounded
             button.font = .systemFont(ofSize: CGFloat(DesignSystem.Typography.label), weight: .semibold)
             button.heightAnchor.constraint(equalToConstant: CGFloat(DesignSystem.Metrics.actionHeight)).isActive = true
         }
         let tools = PracticeUI.row([importButton, review, PracticeUI.spacer()])
-        let column = PracticeUI.column([heading, tools, PracticeCardGrid([listen]), PracticeCardGrid(cards)], spacing: 14)
+        let column = PracticeUI.column([heading, tools, PracticeCardGrid([sprint, listen]), PracticeCardGrid(cards)], spacing: 14)
         column.translatesAutoresizingMaskIntoConstraints = false
         addSubview(column)
         NSLayoutConstraint.activate([

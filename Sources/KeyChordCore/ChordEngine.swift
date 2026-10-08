@@ -63,6 +63,13 @@ public struct EngineContext: Equatable, Sendable {
     init(_ v: OutputContext) { value = v }
     /// The context of a fresh engine: start of text, no pending capital.
     public static let initial = EngineContext(OutputContext())
+    /// Plain text has ended a word, and the next word chord should insert its usual leading space.
+    public static var afterWord: EngineContext {
+        var context = OutputContext()
+        context.atStart = false
+        context.last = OutputContext.Last(kind: .word, attachRight: false, glue: false)
+        return EngineContext(context)
+    }
 }
 
 /// One translated chord's effect, enough to reverse it exactly (Req 11.2, 11.3).

@@ -31,6 +31,7 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
     var onUseInEditor: (() -> Void)? { didSet { updateLearningStage() } }
     var onOpenReference: (() -> Void)?
     var onOpenKeyboardTools: (() -> Void)?
+    var onWordSprint: (() -> Void)?
     var onEnableOtherApps: (() -> Void)? { didSet { enableOtherAppsButton.isEnabled = onEnableOtherApps != nil } }
     /// What the Matrix Scan found; blocked chords are never suggested. Takes effect on the next plan.
     var limits: KeyboardLimits? { didSet { mappingVersion += 1 } }
@@ -716,6 +717,7 @@ final class TypingGuideWindowController: NSWindowController, NSWindowDelegate, N
         practiceLibrary = PracticeLibraryView(review: reviewButton, importButton: importButton)
         practiceLibrary.onTopic = { [weak self] index in self?.startGeneratedExercise(.topic(index)) }
         practiceLibrary.onListen = { [weak self] in self?.startListeningPractice() }
+        practiceLibrary.onWordSprint = { [weak self] in self?.onWordSprint?() }
         exerciseContent.isHidden = true
         practiceLibrary.isHidden = true
         pageContent = PracticeUI.column([courseOverview, practiceLibrary, exerciseContent], spacing: 0)
