@@ -43,4 +43,4 @@ Human VoiceOver operation, system Increase Contrast and Reduced Motion settings,
 
 **Reviewed build**
 
-The release executable is packaged in the existing `build/KeyChord.app`. The website download is `downloads/KeyChord.zip`, containing `KeyChord.app`. The build updates that bundle in place and preserves existing permissions. Development history is kept in Git; dated and suffix build copies have been removed.
+The release executable is packaged in the existing `build/KeyChord.app`. The website download is `downloads/KeyChord.zip`, containing `KeyChord.app`. `./build-app.sh` updates that bundle in place and opens it. Ad-hoc builds reset this app's Accessibility grant so returning users can grant the rebuilt code access; certificate-signed builds preserve grants by default. `KEYCHORD_RESET_TCC=0` preserves grants, `KEYCHORD_RESET_TCC=1` forces renewal with either signing identity, and `KEYCHORD_LAUNCH=0` skips opening the app. Development history is kept in Git; dated and suffix build copies have been removed.

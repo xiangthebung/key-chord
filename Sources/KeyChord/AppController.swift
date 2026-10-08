@@ -105,6 +105,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.pollPermissions() }
 
         _ = startTapIfPermitted()
+        // Returning users already chose global typing. A rebuilt app may have lost its
+        // Accessibility grant; explain how to renew it once, instead of silently polling.
+        if learningJourney.permitsGlobalTyping && !Permissions.allGranted {
+            DispatchQueue.main.async { self.explainPermissions() }
+        }
         switch learningJourney.launch {
         case .begin:
             DispatchQueue.main.async { self.showFirstChords(stage: .see) }

@@ -14,7 +14,7 @@ Validation completed:
 - Browser visual check: desktop light/dark modes, keyboard below the input, and a narrow effective viewport of 312 px. No document overflow; the physical keyboard scrolls within its own region on narrow screens.
 - Deterministic exporter `--check`, JavaScript syntax, and whitespace checks passed.
 
-The release updates `build/KeyChord.app` in place under its existing bundle identifier. The dated/suffix/preview development bundles were removed. Existing user settings, data backups and the older installed input-method bundle were preserved. Permission resets are now explicit opt-in rather than a build side effect. The website archive is `downloads/KeyChord.zip` containing `KeyChord.app`.
+The release updates `build/KeyChord.app` in place under its existing bundle identifier. The dated/suffix/preview development bundles were removed. Existing user settings, data backups and the older installed input-method bundle were preserved. The build script now renews Accessibility grants for ad-hoc builds and opens the app; certificate-signed builds preserve grants by default. The website archive is `downloads/KeyChord.zip` containing `KeyChord.app`.
 
 Native live screen capture was unavailable because the computer-use service timed out while resolving app windows; native visual layout is covered by AppKit frame/order checks rather than a live screenshot. The browser screenshot is `site-redesign-2026-10-07.jpg`.
 
