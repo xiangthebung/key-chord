@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "palette": {
+    "light": {
+      "fg": "#1f2328",
+      "muted": "#59636e",
+      "bg": "#fff",
+      "line": "#d0d7de",
+      "key": "#f6f8fa",
+      "unmapped": "#f2f3f5",
+      "unmapped-text": "#8c959f",
+      "wire": "#d0d7de",
+      "on": "#2f6fdd",
+      "on-edge": "#1d4e9e",
+      "bad": "#cf222e",
+      "bad-text": "#a40e26",
+      "bad-soft": "#ffebe9",
+      "bad-fill": "#cf222e",
+      "bad-edge": "#82071e",
+      "guide": "#eef3fb",
+      "on-hover": "#245bb8",
+      "warm": "#9a6700",
+      "warm-soft": "#fff8c5"
+    },
+    "dark": {
+      "fg": "#e6edf3",
+      "muted": "#9da7b3",
+      "bg": "#0d1117",
+      "line": "#3d444d",
+      "key": "#161b22",
+      "unmapped": "#21262d",
+      "unmapped-text": "#6e7681",
+      "wire": "#3d444d",
+      "on": "#2f6fdd",
+      "on-edge": "#9cc1ff",
+      "bad": "#f85149",
+      "bad-text": "#ff7b72",
+      "bad-soft": "#3d1a1d",
+      "bad-fill": "#da3633",
+      "bad-edge": "#ffa198",
+      "guide": "#243249",
+      "on-hover": "#245bb8",
+      "warm": "#d29922",
+      "warm-soft": "#332c12"
+    }
+  },
+  "rolePalette": {
+    "light": {
+      "onset": "#007aff",
+      "vowel": "#af52de",
+      "coda": "#30b0c7",
+      "spell": "#ff2d55",
+      "special": "#a2845e",
+      "number": "#8e8e93",
+      "space": "#8e8e93"
+    },
+    "dark": {
+      "onset": "#0a84ff",
+      "vowel": "#bf5af2",
+      "coda": "#40c8e0",
+      "spell": "#ff375f",
+      "special": "#ac8e68",
+      "number": "#8e8e93",
+      "space": "#8e8e93"
+    }
+  },
+  "metrics": {
+    "radius": 6,
+    "inputRadius": 6,
+    "pagePadding": 24,
+    "cardPadding": 16,
+    "actionHeight": 34,
+    "contentWidth": 720,
+    "siteWidth": 1560,
+    "sidebarWidth": 220,
+    "rowGap": 10,
+    "columnGap": 12,
+    "cardGap": 10,
+    "topicHeight": 76,
+    "topicBreakpoint": 650,
+    "iconSize": 30,
+    "exerciseWidth": 720,
+    "keyboardWidth": 680,
+    "keyboardGap": 4,
+    "keyboardRadius": 5,
+    "keyboardHeight": 48
+  },
+  "typography": {
+    "body": 15,
+    "caption": 12,
+    "label": 13,
+    "title": 22,
+    "brand": 20,
+    "cardTitle": 16,
+    "practice": 22
+  },
+  "labels": {
+    "sections": {
+      "learn": "Lessons",
+      "practice": "Practice",
+      "listen": "Listen",
+      "editor": "Editor",
+      "reference": "Reference",
+      "hardware": "Keyboard tools",
+      "settings": "Settings"
+    },
+    "stages": {
+      "see": "See",
+      "try": "Try",
+      "recall": "Recall",
+      "use": "Use"
+    }
+  }
+}

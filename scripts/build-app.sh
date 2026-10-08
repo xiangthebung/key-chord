@@ -1,30 +1,27 @@
 #!/bin/zsh
-# Builds KeyChord.app (menu-bar app, no Dock icon) into ./build and signs it.
+# Updates the single ./build/KeyChord.app (menu-bar app, no Dock icon) and signs it.
 #
-# macOS ties Accessibility / Input Monitoring grants to the app's CODE SIGNATURE
-# identity (its cdhash-derived designated requirement), not to the bundle ID or path.
-# An ad-hoc signature (`--sign -`) changes on every build, so every rebuild looks like
-# a brand-new app to TCC and your previously granted permission silently stops working
-# (the toggle still shows "enabled" but points at the old, dead signature).
+# macOS checks the app's code-signing requirement when applying Accessibility grants.
+# Changed ad-hoc signed code may require the existing app's grant to be renewed.
 #
-# Fix: sign with a STABLE identity so the signature is identical across rebuilds.
+# A stable signing identity gives rebuilds a consistent signing requirement:
 #   - Set KEYCHORD_SIGN_IDENTITY to a Keychain code-signing identity, e.g.
 #       export KEYCHORD_SIGN_IDENTITY="Apple Development: you@example.com (TEAMID)"
 #     or a self-signed "Code Signing" cert you created in Keychain Access, e.g.
 #       export KEYCHORD_SIGN_IDENTITY="KeyChord Self Signed"
-#   - If unset, this falls back to ad-hoc (`-`), and you WILL have to re-grant each build.
+#   - If unset, this falls back to ad-hoc (`-`).
 #
-# With ad-hoc signing this script resets KeyChord's Accessibility record after each build,
-# because the old grant can only point at the previous build. Launch the new app and
-# click "Open Accessibility Settings": KeyChord is added to the list, switch it on.
+# This script preserves existing permissions. If the existing Accessibility grant
+# needs repair, run explicitly with KEYCHORD_RESET_TCC=1, then grant it again.
 # KeyChord only needs Accessibility (Input Monitoring is not required).
-# Set KEYCHORD_KEEP_TCC=1 to skip the reset.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIG=${1:-release}
 SIGN_IDENTITY=${KEYCHORD_SIGN_IDENTITY:--}
-BUNDLE_ID=dev.keychord.KeyChord
+BUNDLE_ID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Resources/Info.plist)
+# Keep the same path and bundle directory. Preview or dated app copies do not belong here.
+readonly APP="$PWD/build/KeyChord.app"
 
 swift build -c "$CONFIG" --product KeyChord
 BIN_DIR=$(swift build -c "$CONFIG" --show-bin-path)
@@ -36,8 +33,6 @@ if pgrep -x KeyChord >/dev/null; then
   sleep 0.5
 fi
 
-APP=build/KeyChord.app
-rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/KeyChord" "$APP/Contents/MacOS/KeyChord"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
@@ -47,8 +42,7 @@ codesign --force --options runtime --sign "$SIGN_IDENTITY" \
 
 if [[ "$SIGN_IDENTITY" == "-" ]]; then
   echo "Built $APP (AD-HOC signed)."
-  if [[ "${KEYCHORD_KEEP_TCC:-0}" != "1" ]]; then
-    # The previous grant belongs to the previous cdhash; clear it so macOS asks again cleanly.
+  if [[ "${KEYCHORD_RESET_TCC:-0}" == "1" ]]; then
     tccutil reset Accessibility "$BUNDLE_ID" >/dev/null 2>&1 || true
     tccutil reset ListenEvent "$BUNDLE_ID" >/dev/null 2>&1 || true
     echo "Reset the Accessibility grant for $BUNDLE_ID. Launch the app and grant it again:"

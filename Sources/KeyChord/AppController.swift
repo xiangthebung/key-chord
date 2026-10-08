@@ -22,6 +22,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var matrixWindow: MatrixScanWindowController?
     private var wiringCheckWindow: WiringCheckWindowController?
     private var guideWindow: TypingGuideWindowController?
+    private var firstChordWindow: FirstChordWindowController?
+    private var editorPracticeWindow: EditorPracticeWindowController?
+    private var hardwareCheckWindow: HardwareCheckWindowController?
+    private var ergonomicTrialWindow: ErgonomicTrialWindowController?
+    private var learningJourney: LearningJourneyStore!
     private var manualWindow: ManualWindowController?
     private var overlay: ReferenceOverlayController?
     private let courseProgress = CourseProgress()
@@ -32,6 +37,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private var permissionTimer: Timer?
     private var stateTimer: Timer?
+    /// Each focused local surface owns its own pause. Losing one focus cannot release another's pause.
+    private enum LocalInputOwner: Hashable { case firstChords, probe, matrix, wiring, hardwareCheck, ergonomicTrial }
+    private var localInputOwners = Set<LocalInputOwner>()
 
     /// The keyboard type macOS reported at launch (nil: JIS or unknown). Read once, so that typing on an
     /// external keyboard later doesn't switch the drawing or the wiring.
@@ -55,8 +63,21 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: Launch
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            if let firstChordWindow, firstChordWindow.ownsLocalInput { firstChordWindow.present() }
+            else { openTypingGuide() }
+        }
+        return true
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)                 // Req 17.1: no Dock icon
+
+        // Snapshot pre-existing files before installing defaults. Updating an older installation
+        // should never force a new introduction or disable its previously enabled event tap.
+        let hasExistingData = DataFile.allCases.contains { FileManager.default.fileExists(atPath: store.url($0).path) }
+        learningJourney = LearningJourneyStore(hasExistingDataFiles: hasExistingData)
 
         let installErrors = store.installMissingDefaults()    // Req 15.2
         applyKeyboard()
@@ -82,8 +103,13 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stateTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in self?.pollState() }
         permissionTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in self?.pollPermissions() }
 
-        if !startTapIfPermitted() {
-            DispatchQueue.main.async { self.explainPermissions() }   // Req 18.1
+        _ = startTapIfPermitted()
+        switch learningJourney.launch {
+        case .begin:
+            DispatchQueue.main.async { self.showFirstChords(stage: .see) }
+        case .resume(let stage):
+            DispatchQueue.main.async { self.showFirstChords(stage: stage) }
+        case .skip: break
         }
         report(problems: outcome.problems, warnings: outcome.warnings, dropped: outcome.droppedChords, extra: installErrors)
     }
@@ -98,6 +124,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return pass
         }
         if OutputEmitter.isSynthetic(event) { return pass }                    // Req 2.7
+        // The owned local field receives the original NSEvent and applies its own engine output.
+        // Skip BEFORE raw listeners and routing: neither the guide nor the global emitter sees it.
+        if firstChordWindow?.ownsLocalInput == true || !localInputOwners.isEmpty { return pass }
         if keyListener != nil || overlayListener != nil {
             let guide = keyListener, overlay = overlayListener
             forwardRawKey(type, event) { e in
@@ -131,7 +160,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let out = router.handle(input)
         if !out.actions.isEmpty {
             do {
-                try emitter.emit(out.actions)                                   // Req 16.1, 16.4
+                if guideWindow?.receiveOutput(out.actions) != true {
+                    try emitter.emit(out.actions)                               // Req 16.1, 16.4
+                }
             } catch {
                 let events = router.forceNormal()                               // Req 18.8
                 DispatchQueue.main.async { self.handle(events: events + [.failSafe]) }
@@ -194,6 +225,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var isFlashing = false
 
     private func pollPermissions() {
+        guard learningJourney.permitsGlobalTyping else { return }
         if tap.isRunning {
             // A revoked permission makes chord typing unavailable (Req 18.2).
             let granted = Permissions.allGranted
@@ -209,6 +241,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @discardableResult
     private func startTapIfPermitted() -> Bool {
+        // A fresh profile learns in a local field first. Merely launching or polling never opts
+        // the learner into interception or a system permission prompt.
+        guard learningJourney.permitsGlobalTyping else { return false }
         guard Permissions.allGranted else {
             tapFailures = 0
             if router.permissionsGranted { handle(events: router.setPermissionsGranted(false)) }
@@ -243,6 +278,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Text next to the keyboard icon in the menu bar: the sub-mode while chord typing is on.
     private func indicatorTitle() -> String {
+        if !learningJourney.permitsGlobalTyping { return "Local" }
         switch router.availability {
         case .missingPermission: return "⚠︎"
         case .secureInput: return "🔒"
@@ -257,6 +293,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// One line on what KeyChord is doing, for the top of the menu.
     private func statusLine() -> String {
+        if !learningJourney.permitsGlobalTyping {
+            return "Local practice is available · enable typing in other apps when ready"
+        }
         switch router.availability {
         case .missingPermission:
             return Permissions.accessibility ? "KeyChord needs to be reopened" : "KeyChord needs Accessibility access"
@@ -298,9 +337,11 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func updatePracticeState() {
         let status = router.availability == .available && router.probeActive
-            ? "Paused while a keyboard test window is in front" : statusLine()
+            ? "Paused while a local practice or keyboard check has focus" : statusLine()
         guideWindow?.updateTypingState(availability: router.availability, effectiveMode: router.effectiveMode,
                                        status: status)
+        editorPracticeWindow?.update(availability: router.availability, optedIn: learningJourney.permitsGlobalTyping,
+                                     tapRunning: tap.isRunning)
     }
 
     // MARK: Reference overlay
@@ -312,7 +353,9 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if case .chord = router.effectiveMode { chording = true }
         let status: String
         switch router.availability {
-        case .missingPermission: status = "KeyChord needs Accessibility access to read chords."
+        case .missingPermission:
+            status = learningJourney.permitsGlobalTyping ? "KeyChord needs Accessibility access to read chords."
+                : "Local practice is available. Enable typing in other apps when you are ready."
         case .secureInput: status = "Paused while Secure Input is on."
         case .available:
             if case .chord = router.displayedMode {
@@ -347,8 +390,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// A keyboard test window gained or lost focus: chords pause while it has it (Req 5.3).
-    private func setProbeActive(_ on: Bool) {
-        router.setProbeActive(on)
+    private func setProbeActive(_ on: Bool, owner: LocalInputOwner) {
+        if on { localInputOwners.insert(owner) } else { localInputOwners.remove(owner) }
+        router.setProbeActive(!localInputOwners.isEmpty)
+        if localInputOwners.isEmpty {
+            // Releases inside a local surface bypassed the global router. Forget any old
+            // held-key bookkeeping before it accepts the next explicit right-Option tap.
+            router.syncPhysicalKeys(physicallyHeldKeys())
+        }
         updateOverlay()
         updatePracticeState()
     }
@@ -370,40 +419,73 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let status = NSMenuItem(title: statusLine(), action: nil, keyEquivalent: "")
         status.isEnabled = false
         menu.addItem(status)
-        if router.availability == .missingPermission && !Permissions.accessibility {
+        if !learningJourney.permitsGlobalTyping {
+            menu.addItem(item("Enable Typing in Other Apps…", #selector(openAccessibilitySettings)))
+        } else if router.availability == .missingPermission && !Permissions.accessibility {
             menu.addItem(item("Allow Accessibility Access…", #selector(openAccessibilitySettings)))
         }
         menu.addItem(.separator())
 
         let available = router.availability == .available
-        let chord = item("Chord Typing (tap right Option)", #selector(toggleChord))
+        let chord = item("Chord Typing", #selector(toggleChord))
+        chord.toolTip = "Tap right Option to start or pause chord typing."
         if case .chord = router.displayedMode { chord.state = .on }
         chord.isEnabled = available
         menu.addItem(chord)
-        let en = item("English Mode", #selector(selectEnglish))
+        let language = NSMenuItem(title: "Language", action: nil, keyEquivalent: "")
+        let languageMenu = NSMenu()
+        let en = item("English", #selector(selectEnglish))
         en.state = router.displayedMode == .chord(.english) ? .on : .off
-        let cpp = item("C++ Mode", #selector(selectCpp))
+        let cpp = item("C++", #selector(selectCpp))
         cpp.state = router.displayedMode == .chord(.cpp) ? .on : .off
         en.isEnabled = available
         cpp.isEnabled = available
-        menu.addItem(en)
-        menu.addItem(cpp)
+        languageMenu.addItem(en)
+        languageMenu.addItem(cpp)
+        language.submenu = languageMenu
+        menu.addItem(language)
         menu.addItem(.separator())
+        menu.addItem(item("Lessons…", #selector(openCourse)))
+        menu.addItem(item("Practice…", #selector(openTypingGuide)))
 
-        let done = courseProgress.doneCount
-        menu.addItem(item(done == 0 ? "Start the Course…"
-                            : "Continue the Course (\(done) of \(Course.steps.count) steps done)…", #selector(openCourse)))
-        menu.addItem(item("Manual…", #selector(openManual)))
-        menu.addItem(item("Typing Guide…", #selector(openTypingGuide)))
-        let overlayItem = item("Reference Overlay", #selector(toggleOverlay))
+        let tools = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
+        let toolsMenu = NSMenu()
+        toolsMenu.addItem(item("First Chord Introduction…", #selector(openFirstChords)))
+        toolsMenu.addItem(item("Editor…", #selector(openEditorPractice)))
+        let reference = NSMenuItem(title: "Reference", action: nil, keyEquivalent: "")
+        let referenceMenu = NSMenu()
+        referenceMenu.addItem(item("Manual…", #selector(openManual)))
+        let overlayItem = item("Keyboard Overlay", #selector(toggleOverlay))
         overlayItem.state = overlay?.isVisible == true ? .on : .off
-        overlayItem.toolTip = "A floating keyboard reference that shows what the keys you hold will type."
-        menu.addItem(overlayItem)
-        menu.addItem(item("Show Layout…", #selector(showLayout)))
-        menu.addItem(.separator())
+        referenceMenu.addItem(overlayItem)
+        referenceMenu.addItem(item("Layout…", #selector(showLayout)))
+        reference.submenu = referenceMenu
+        toolsMenu.addItem(reference)
+        let hardware = NSMenuItem(title: "Keyboard Tools", action: nil, keyEquivalent: "")
+        let hardwareMenu = NSMenu()
+        hardwareMenu.addItem(item("Check Chords…", #selector(openHardwareCheck)))
+        hardwareMenu.addItem(item("Comfort and Speed Trial…", #selector(openErgonomicTrial)))
+        hardwareMenu.addItem(.separator())
+        hardwareMenu.addItem(item("Rollover Probe…", #selector(openProbe)))
+        hardwareMenu.addItem(item("Matrix Scan…", #selector(openMatrixScan)))
+        hardwareMenu.addItem(item("Wiring Check…", #selector(openWiringCheck)))
+        let rollover = NSMenuItem(title: "Rollover Limit", action: nil, keyEquivalent: "")
+        let rolloverMenu = NSMenu()
+        for n in 2...10 {
+            let i = item("\(n) keys", #selector(setRollover(_:)))
+            i.tag = n
+            i.state = settings.rolloverLimit == n ? .on : .off
+            rolloverMenu.addItem(i)
+        }
+        rollover.submenu = rolloverMenu
+        hardwareMenu.addItem(rollover)
+        hardware.submenu = hardwareMenu
+        toolsMenu.addItem(hardware)
+        tools.submenu = toolsMenu
+        menu.addItem(tools)
 
-        menu.addItem(item("Open Dictionary Folder", #selector(openFolder)))
-        menu.addItem(item("Reload Dictionaries", #selector(reloadDictionaries)))
+        let settingsItem = NSMenuItem(title: "Settings", action: nil, keyEquivalent: "")
+        let settingsMenu = NSMenu()
         let timeout = NSMenuItem(title: "Option Tap Timeout", action: nil, keyEquivalent: "")
         let tm = NSMenu()
         for ms in [200, 300, 400, 500, 600, 800] {
@@ -413,7 +495,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
             tm.addItem(i)
         }
         timeout.submenu = tm
-        menu.addItem(timeout)
+        settingsMenu.addItem(timeout)
         let keyboard = NSMenuItem(title: "Keyboard", action: nil, keyEquivalent: "")
         keyboard.toolTip = "The keyboard the Typing Guide, the overlay and the manual show, and whose wiring decides "
             + "which chords it can't register."
@@ -427,31 +509,14 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
             km.addItem(i)
         }
         keyboard.submenu = km
-        menu.addItem(keyboard)
+        settingsMenu.addItem(keyboard)
 
-        // Tools for measuring a keyboard. Their results are only useful to whoever maintains the layout, so
-        // they stay out of the way: hold Option while opening the menu to see them.
-        if NSEvent.modifierFlags.contains(.option) {
-            menu.addItem(.separator())
-            let developer = NSMenuItem(title: "Developer", action: nil, keyEquivalent: "")
-            let dm = NSMenu()
-            dm.addItem(item("Rollover Probe…", #selector(openProbe)))
-            dm.addItem(item("Matrix Scan…", #selector(openMatrixScan)))
-            dm.addItem(item("Wiring Check…", #selector(openWiringCheck)))
-            let rollover = NSMenuItem(title: "Rollover Limit", action: nil, keyEquivalent: "")
-            let rm = NSMenu()
-            for n in 2...10 {
-                let i = item("\(n) keys", #selector(setRollover(_:)))
-                i.tag = n
-                i.state = settings.rolloverLimit == n ? .on : .off
-                rm.addItem(i)
-            }
-            rollover.submenu = rm
-            dm.addItem(rollover)
-            dm.addItem(item("Permission Status…", #selector(showPermissions)))
-            developer.submenu = dm
-            menu.addItem(developer)
-        }
+        settingsMenu.addItem(.separator())
+        settingsMenu.addItem(item("Open Dictionary Folder", #selector(openFolder)))
+        settingsMenu.addItem(item("Reload Dictionaries", #selector(reloadDictionaries)))
+        settingsMenu.addItem(item("Permission Status…", #selector(showPermissions)))
+        settingsItem.submenu = settingsMenu
+        menu.addItem(settingsItem)
         menu.addItem(.separator())
         menu.addItem(item("Quit KeyChord", #selector(quit), key: "q"))
     }
@@ -462,7 +527,10 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return i
     }
 
-    @objc private func openAccessibilitySettings() { Permissions.openAccessibility() }
+    @objc private func openAccessibilitySettings() {
+        learningJourney.chooseOtherApps()
+        if !startTapIfPermitted() { Permissions.openAccessibility() }
+    }
     @objc private func toggleChord() { handle(events: router.toggleChordMode()) }
     @objc private func selectEnglish() { handle(events: router.selectSubMode(.english)) }
     @objc private func selectCpp() { handle(events: router.selectSubMode(.cpp)) }
@@ -532,6 +600,18 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if wasOff && self.router.selectedMode != .normal { events += self.router.toggleChordMode() }
                 self.handle(events: events)
             }
+            guide.onPracticeActiveChanged = { [weak self] active, mode in
+                guard let self, self.router.availability == .available else { return }
+                self.handle(events: active ? self.router.selectSubMode(mode) : self.router.forceNormal())
+                self.updatePracticeState()
+            }
+            guide.onUseInEditor = { [weak self] in
+                guard let self else { return }
+                self.showEditorPractice(mode: self.router.lastSubMode)
+            }
+            guide.onEnableOtherApps = { [weak self] in self?.enableOtherAppTyping() }
+            guide.onOpenReference = { [weak self] in self?.openManual() }
+            guide.onOpenKeyboardTools = { [weak self] in self?.openHardwareCheck() }
             guide.progress = courseProgress
             installWiring()
             guide.limits = KeyboardLimits(wiringText: store.readWiring(), scanText: store.readMatrixScan(),
@@ -548,6 +628,94 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guideWindow?.startCourse()
     }
 
+    @objc private func openFirstChords() { showFirstChords(stage: .see) }
+
+    private func showFirstChords(stage: FirstChordStage) {
+        firstChordWindow?.close()
+        let data = router.engine.data
+        let usable = keyboardLimits(for: data.layout).map { $0.usable(in: data.layout) } ?? { _ in true }
+        let first = FirstChordWindowController(data: data, rolloverLimit: settings.rolloverLimit, usable: usable,
+                                               store: learningJourney, stage: stage,
+                                               globalSuspended: { [weak self] in
+                                                   self?.localInputOwners.contains(.firstChords) == true
+                                               })
+        first.onLocalFocus = { [weak self] on in self?.setProbeActive(on, owner: .firstChords) }
+        first.onContinueCourse = { [weak self] in self?.openCourse() }
+        first.onTestOut = { [weak self] in
+            self?.openTypingGuide()
+            self?.guideWindow?.startCourseTestOut()
+        }
+        first.onUseInEditor = { [weak self] in self?.showEditorPractice(mode: .english) }
+        firstChordWindow = first
+        first.present()
+    }
+
+    @objc private func openEditorPractice() { showEditorPractice(mode: router.lastSubMode) }
+
+    private func showEditorPractice(mode: SubMode) {
+        editorPracticeWindow?.close()
+        let data = router.engine.data
+        let usable = keyboardLimits(for: data.layout).map { $0.usable(in: data.layout) } ?? { _ in true }
+        let editor = EditorPracticeWindowController(data: data, store: learningJourney, mode: mode,
+                                                    rolloverLimit: settings.rolloverLimit, usable: usable)
+        editor.onEnableOtherApps = { [weak self] in
+            self?.enableOtherAppTyping()
+        }
+        editor.onPrepareEditor = { [weak self] in
+            guard let self else { return }
+            // Select the exercise's mapping but enter the document in ordinary mode. The learner
+            // explicitly taps right Option there to begin, so no typed instructions are intercepted.
+            var events = self.router.selectSubMode(mode)
+            events += self.router.forceNormal()
+            self.handle(events: events)
+        }
+        editor.onContinueCourse = { [weak self] in self?.openCourse() }
+        editorPracticeWindow = editor
+        updatePracticeState()
+        editor.present()
+    }
+
+    private var hardwareIdentity: HardwareIdentity {
+        let keyboard = keyboardKind.map { KeyboardGeometry.of($0).name } ?? "Unknown keyboard (shown as ANSI)"
+        let mapping = DataFile.allCases.map { lastValid[$0] ?? $0.defaultSource }.joined(separator: "\n")
+        let fingerprint = String(DataStore.fnv1a(mapping), radix: 16)
+        let profile = (keyboardKind?.rawValue ?? "automatic-unknown") + " · mapping " + fingerprint
+            + " · rollover \(settings.rolloverLimit)"
+        let origin = settings.keyboard == nil ? "detected" : "selected"
+        return HardwareIdentity(keyboard: "Connected keyboard unconfirmed · \(origin) " + keyboard + " geometry",
+                                profile: profile, model: Hardware.model)
+    }
+
+    @objc private func openHardwareCheck() {
+        if hardwareCheckWindow == nil {
+            let data = router.engine.data
+            let identity = hardwareIdentity
+            let confidence = HardwareConfidence.resolve(identity: identity, wiringText: store.readWiring(),
+                                                        scanText: store.readMatrixScan(), layout: data.layout,
+                                                        scanBelongsToCurrentKeyboard: false)
+            let reports = AggregateHardwareReportStore(directory: store.directory)
+            hardwareCheckWindow = HardwareCheckWindowController(data: data, limits: keyboardLimits(for: data.layout),
+                                                                identity: identity, confidence: confidence,
+                                                                onFocus: { [weak self] on in
+                                                                    self?.setProbeActive(on, owner: .hardwareCheck)
+                                                                }, onSave: { try reports.saveHardware($0) })
+        }
+        hardwareCheckWindow?.present()
+    }
+
+    @objc private func openErgonomicTrial() {
+        if ergonomicTrialWindow == nil {
+            let data = router.engine.data
+            let reports = AggregateHardwareReportStore(directory: store.directory)
+            ergonomicTrialWindow = ErgonomicTrialWindowController(data: data, limits: keyboardLimits(for: data.layout),
+                                                                  identity: hardwareIdentity, rolloverLimit: settings.rolloverLimit,
+                                                                  onFocus: { [weak self] on in
+                                                                      self?.setProbeActive(on, owner: .ergonomicTrial)
+                                                                  }, onSave: { try reports.saveErgonomics($0) })
+        }
+        ergonomicTrialWindow?.present()
+    }
+
     @objc private func openFolder() {
         _ = store.installMissingDefaults()
         NSWorkspace.shared.open(store.directory)
@@ -557,7 +725,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if probeWindow == nil {
             probeWindow = ProbeWindowController(
                 data: router.engine.data, rolloverLimit: settings.rolloverLimit,
-                onFocus: { [weak self] on in self?.setProbeActive(on) },
+                onFocus: { [weak self] on in self?.setProbeActive(on, owner: .probe) },
                 onSave: { [weak self] report in self?.saveProbe(report) ?? "" })
         }
         probeWindow?.present()
@@ -568,7 +736,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if matrixWindow == nil {
             matrixWindow = MatrixScanWindowController(
                 data: router.engine.data, store: store,
-                onFocus: { [weak self] on in self?.setProbeActive(on) })
+                onFocus: { [weak self] on in self?.setProbeActive(on, owner: .matrix) })
         }
         matrixWindow?.present()
     }
@@ -577,7 +745,7 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if wiringCheckWindow == nil {
             wiringCheckWindow = WiringCheckWindowController(
                 data: router.engine.data, store: store,
-                onFocus: { [weak self] on in self?.setProbeActive(on) })
+                onFocus: { [weak self] on in self?.setProbeActive(on, owner: .wiring) })
         }
         installWiring()
         guard let w = wiringCheckWindow else {
@@ -611,12 +779,22 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async {
                 self.lastValid = outcome.acceptedSources
                 self.router.replaceData(outcome.data)
+                let reopenFirstChords = self.firstChordWindow?.window?.isVisible == true
+                self.firstChordWindow?.close()
+                self.firstChordWindow = nil
+                self.hardwareCheckWindow?.close()
+                self.hardwareCheckWindow = nil
+                self.ergonomicTrialWindow?.close()
+                self.ergonomicTrialWindow = nil
+                self.editorPracticeWindow?.close()
+                self.editorPracticeWindow = nil
                 self.probeWindow?.update(data: outcome.data, rolloverLimit: limit)
                 self.matrixWindow?.update(data: outcome.data)
                 self.overlay?.update(data: outcome.data)
                 self.guideWindow?.limits = KeyboardLimits(wiringText: store.readWiring(), scanText: store.readMatrixScan(),
                                                           layout: outcome.data.layout)
                 self.guideWindow?.update(data: outcome.data, rolloverLimit: limit)
+                if reopenFirstChords { self.showFirstChords(stage: .see) }
                 if self.layoutWindow?.window?.isVisible == true { self.showLayout() }
                 self.report(problems: outcome.problems, warnings: outcome.warnings, dropped: outcome.droppedChords, extra: [],
                             fallbacks: outcome.fallbacks, announceSuccess: announce)
@@ -657,6 +835,12 @@ final class AppController: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // MARK: Permissions (Req 18.1)
+
+    private func enableOtherAppTyping() {
+        learningJourney.chooseOtherApps()
+        if !startTapIfPermitted() { explainPermissions() }
+        updatePracticeState()
+    }
 
     private func explainPermissions() {
         guard !Permissions.allGranted else { return }

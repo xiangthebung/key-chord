@@ -15,7 +15,7 @@ struct LessonTests {
                        macBookUSLimits.usable(in: defaults.layout)] {
             let g = TypingPlanner(data: defaults, mode: lesson.mode, usable: usable).plan(lesson.text)
             #expect(g.normalCount == 0, "\(lesson.title) needs Normal mode")
-            #expect(try replay(g) == lesson.text)
+            #expect(try replayPractice(g, text: lesson.text) == lesson.text)
         }
     }
 

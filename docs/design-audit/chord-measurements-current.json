@@ -1,0 +1,1302 @@
+{
+  "clusterCounts": {
+    "coda": 64,
+    "onset": 49,
+    "vowel": 10
+  },
+  "compositionCountIncludingEmptyBanksExcludingEmptyChord": 35749,
+  "courseLessonCount": 52,
+  "curriculumVersion": 2,
+  "englishCompositionOverrides": [
+    {
+      "actualDictionaryMeaning": "-ment",
+      "composed": "nt",
+      "keys": "H+J"
+    },
+    {
+      "actualDictionaryMeaning": "-ness",
+      "composed": "ns",
+      "keys": "H+Semicolon"
+    },
+    {
+      "actualDictionaryMeaning": "-est",
+      "composed": "st",
+      "keys": "J+Semicolon"
+    },
+    {
+      "actualDictionaryMeaning": "-ing",
+      "composed": "ng",
+      "keys": "K+L"
+    },
+    {
+      "actualDictionaryMeaning": "I",
+      "composed": "i",
+      "keys": "M"
+    },
+    {
+      "actualDictionaryMeaning": "-ed",
+      "composed": "d",
+      "keys": "O"
+    },
+    {
+      "actualDictionaryMeaning": "-able",
+      "composed": "c",
+      "keys": "P+H"
+    },
+    {
+      "actualDictionaryMeaning": "-s",
+      "composed": "s",
+      "keys": "Semicolon"
+    },
+    {
+      "actualDictionaryMeaning": "-er",
+      "composed": "r",
+      "keys": "U"
+    },
+    {
+      "actualDictionaryMeaning": "-ly",
+      "composed": "ly",
+      "keys": "Y+L"
+    }
+  ],
+  "experimentalBriefCandidates": [
+    {
+      "currentCppMeaning": "text(\"using\")",
+      "currentEnglishMeaning": "nothing",
+      "keys": "U+S+Quote",
+      "predictedBlockedANSI": false,
+      "predictedBlockedISO": false,
+      "word": "use"
+    },
+    {
+      "currentCppMeaning": "nothing",
+      "currentEnglishMeaning": "nothing",
+      "keys": "Y+O+Quote",
+      "predictedBlockedANSI": false,
+      "predictedBlockedISO": false,
+      "word": "you"
+    }
+  ],
+  "explicitMappingCount": 337,
+  "lessonLoads": [
+    {
+      "id": "first-chord",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "Your first chord"
+    },
+    {
+      "id": "first-ends",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "t at the start, n at the end"
+    },
+    {
+      "id": "vowels",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "The left thumb vowels"
+    },
+    {
+      "id": "right-thumb-vowels",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "i, u and I"
+    },
+    {
+      "id": "home-row",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "r, f and d"
+    },
+    {
+      "id": "home-row-more",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "l, g, s and undo"
+    },
+    {
+      "id": "start-pairs",
+      "introductoryChordItems": 3,
+      "newSkillItems": 1,
+      "title": "Two letters at the start"
+    },
+    {
+      "id": "top-row-ends",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "Ends on the top row"
+    },
+    {
+      "id": "last-keys",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "The last single keys"
+    },
+    {
+      "id": "syllables-review",
+      "introductoryChordItems": 0,
+      "newSkillItems": 0,
+      "title": "Review: single-key letters"
+    },
+    {
+      "id": "two-key-starts",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "Letters with two keys"
+    },
+    {
+      "id": "two-key-starts-ck",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "c and k at the start"
+    },
+    {
+      "id": "more-two-key-starts",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "y, j, v and ch"
+    },
+    {
+      "id": "end-pairs",
+      "introductoryChordItems": 3,
+      "newSkillItems": 1,
+      "title": "Two letters at the end"
+    },
+    {
+      "id": "two-key-ends",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "Letters with two keys at the end"
+    },
+    {
+      "id": "two-key-ends-wx",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "w and x at the end"
+    },
+    {
+      "id": "end-sounds",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "ng, ck and ll"
+    },
+    {
+      "id": "end-sounds-sh-ch-th",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "sh, ch and th at the end"
+    },
+    {
+      "id": "end-sounds-ss-ft-ct",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "ss, ft and ct"
+    },
+    {
+      "id": "end-sounds-kl",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "k and l at the end"
+    },
+    {
+      "id": "blends",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "cl, cr and pl"
+    },
+    {
+      "id": "blends-pr-sk-sm",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "pr, sk and sm"
+    },
+    {
+      "id": "blends-sn-sp-kn-qu",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "sn, sp, kn and qu"
+    },
+    {
+      "id": "vowel-pairs",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "ea, ee and oo"
+    },
+    {
+      "id": "vowel-pairs-ou-ai",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "ou and ai"
+    },
+    {
+      "id": "silent-e-ends",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "ve, ce and ge"
+    },
+    {
+      "id": "two-key-review",
+      "introductoryChordItems": 0,
+      "newSkillItems": 0,
+      "title": "Review: letter groups"
+    },
+    {
+      "id": "s-ed",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "-s and -ed"
+    },
+    {
+      "id": "ing-er",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "-ing, -er, -est and -ly"
+    },
+    {
+      "id": "more-endings",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "-ness, -ment, -able and -ful"
+    },
+    {
+      "id": "full-stop",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "Full stop and comma"
+    },
+    {
+      "id": "capitals",
+      "introductoryChordItems": 1,
+      "newSkillItems": 1,
+      "title": "A capital on the next word"
+    },
+    {
+      "id": "questions",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "Questions and exclamations"
+    },
+    {
+      "id": "more-punctuation",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "Colon, semicolon, apostrophe and hyphen"
+    },
+    {
+      "id": "quotes",
+      "introductoryChordItems": 4,
+      "newSkillItems": 3,
+      "title": "Quotes and brackets"
+    },
+    {
+      "id": "word-chords",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "their, about and people"
+    },
+    {
+      "id": "word-chords-into-other-only",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "into, other and only"
+    },
+    {
+      "id": "word-chords-over-also-after-first",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "over, also, after and first"
+    },
+    {
+      "id": "more-word-chords",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "because, through and before"
+    },
+    {
+      "id": "more-word-chords-between-never-every",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "between, never and every"
+    },
+    {
+      "id": "more-word-chords-little-different-important-something",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "little, different, important and something"
+    },
+    {
+      "id": "join",
+      "introductoryChordItems": 1,
+      "newSkillItems": 1,
+      "title": "Join with the space bar"
+    },
+    {
+      "id": "shift-join",
+      "introductoryChordItems": 1,
+      "newSkillItems": 1,
+      "title": "Join with Shift"
+    },
+    {
+      "id": "spelling",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "Spelling letters"
+    },
+    {
+      "id": "numbers",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "Numbers"
+    },
+    {
+      "id": "cpp-mode",
+      "introductoryChordItems": 4,
+      "newSkillItems": 4,
+      "title": "C++ mode and keywords"
+    },
+    {
+      "id": "cpp-more-keywords",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "auto, void and bool"
+    },
+    {
+      "id": "cpp-symbols",
+      "introductoryChordItems": 5,
+      "newSkillItems": 4,
+      "title": "Assignment and arithmetic"
+    },
+    {
+      "id": "cpp-symbols-round",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "Comparisons and parentheses"
+    },
+    {
+      "id": "cpp-symbols-braces",
+      "introductoryChordItems": 2,
+      "newSkillItems": 2,
+      "title": "Braces"
+    },
+    {
+      "id": "cpp-names",
+      "introductoryChordItems": 3,
+      "newSkillItems": 3,
+      "title": "Names"
+    },
+    {
+      "id": "cpp-program",
+      "introductoryChordItems": 1,
+      "newSkillItems": 1,
+      "title": "A small program"
+    }
+  ],
+  "method": "Bundled defaults, 6-key limit. Every word in the repository's top100 test list is planned once from fresh English context; not a frequency-weighted corpus or a speed/comfort benchmark. Blocked counts are model predictions, not new hardware measurements. Composition counts include abstract/nonword combinations and intentional dictionary overrides.",
+  "profiles": {
+    "macbook-pro-2021-ansi-derived-model": {
+      "compositionCountPredictedBlocked": 3744,
+      "courseNormalFallbackSteps": 0,
+      "courseTotalChords": 764,
+      "examples": {
+        "A": [
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "A"
+          }
+        ],
+        "NASA": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"N\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "N"
+          },
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          },
+          {
+            "action": "chord(keys: [\"S\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "S"
+          },
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          }
+        ],
+        "Z": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"Z\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "Z"
+          }
+        ],
+        "and": [
+          {
+            "action": "chord(keys: [\"O\", \"H\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "and"
+          }
+        ],
+        "different": [
+          {
+            "action": "chord(keys: [\"D\", \"F\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "different"
+          }
+        ],
+        "important": [
+          {
+            "action": "chord(keys: [\"T\", \"I\", \"Quote\", \"M\"], shift: false)",
+            "kind": "brief",
+            "output": "important"
+          }
+        ],
+        "int": [
+          {
+            "action": "chord(keys: [\"H\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "in"
+          },
+          {
+            "action": "chord(keys: [\"J\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "t"
+          }
+        ],
+        "sat": [
+          {
+            "action": "chord(keys: [\"S\", \"J\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "sat"
+          }
+        ],
+        "the": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"B\"], shift: false)",
+            "kind": "syllable",
+            "output": "the"
+          }
+        ],
+        "thing": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"K\", \"L\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "thing"
+          }
+        ],
+        "through": [
+          {
+            "action": "chord(keys: [\"R\", \"T\", \"H\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "through"
+          }
+        ],
+        "understanding": [
+          {
+            "action": "chord(keys: [\"U\", \"Quote\", \"N\"], shift: false)",
+            "kind": "brief",
+            "output": "under"
+          },
+          {
+            "action": "chord(keys: [\"T\", \"O\", \"S\", \"H\", \"C\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "stand"
+          },
+          {
+            "action": "chord(keys: [\"K\", \"L\"], shift: false)",
+            "kind": "suffix",
+            "output": "ing"
+          }
+        ],
+        "use": [
+          {
+            "action": "chord(keys: [\"N\"], shift: false)",
+            "kind": "syllable",
+            "output": "u"
+          },
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Slash\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "se"
+          }
+        ],
+        "you": [
+          {
+            "action": "chord(keys: [\"Q\", \"W\", \"C\", \"V\"], shift: false)",
+            "kind": "syllable",
+            "output": "you"
+          }
+        ]
+      },
+      "explicitMappingsPredictedBlocked": [
+        {
+          "file": "layout.txt",
+          "keys": "A+Semicolon+Quote",
+          "meaning": "[fingerspell] \"A\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "H+Semicolon+Quote",
+          "meaning": "[fingerspell] \"H\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "J+Semicolon+Quote",
+          "meaning": "[fingerspell] \"J\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "K+Semicolon+Quote",
+          "meaning": "[fingerspell] \"K\""
+        }
+      ],
+      "top100ChordCounts": {
+        "I": 1,
+        "a": 1,
+        "about": 1,
+        "after": 1,
+        "all": 1,
+        "also": 1,
+        "an": 1,
+        "and": 1,
+        "any": 1,
+        "as": 1,
+        "at": 1,
+        "back": 1,
+        "be": 1,
+        "because": 1,
+        "but": 1,
+        "by": 1,
+        "can": 1,
+        "come": 1,
+        "could": 1,
+        "day": 1,
+        "do": 1,
+        "even": 1,
+        "first": 1,
+        "for": 1,
+        "from": 1,
+        "get": 1,
+        "give": 1,
+        "go": 1,
+        "good": 1,
+        "have": 1,
+        "he": 1,
+        "her": 1,
+        "him": 1,
+        "his": 1,
+        "how": 1,
+        "if": 1,
+        "in": 1,
+        "into": 1,
+        "it": 1,
+        "its": 1,
+        "just": 1,
+        "know": 1,
+        "like": 1,
+        "look": 1,
+        "make": 1,
+        "me": 1,
+        "most": 1,
+        "my": 1,
+        "new": 1,
+        "no": 1,
+        "not": 1,
+        "now": 1,
+        "of": 1,
+        "on": 1,
+        "one": 1,
+        "only": 1,
+        "or": 1,
+        "other": 1,
+        "our": 1,
+        "out": 1,
+        "over": 1,
+        "people": 1,
+        "say": 1,
+        "see": 1,
+        "she": 1,
+        "so": 1,
+        "some": 1,
+        "take": 1,
+        "than": 1,
+        "that": 1,
+        "the": 1,
+        "their": 1,
+        "them": 1,
+        "then": 1,
+        "there": 1,
+        "these": 1,
+        "they": 1,
+        "think": 1,
+        "this": 1,
+        "time": 1,
+        "to": 1,
+        "two": 1,
+        "up": 1,
+        "us": 1,
+        "use": 2,
+        "want": 1,
+        "way": 1,
+        "we": 1,
+        "well": 1,
+        "what": 1,
+        "when": 1,
+        "which": 1,
+        "who": 1,
+        "will": 1,
+        "with": 1,
+        "work": 1,
+        "would": 1,
+        "year": 1,
+        "you": 1,
+        "your": 1
+      },
+      "top100ItemCount": 100,
+      "top100KeyPressesIncludingShift": 342,
+      "top100KeyUse": {
+        "A": 5,
+        "B": 19,
+        "C": 28,
+        "D": 10,
+        "E": 25,
+        "F": 11,
+        "G": 8,
+        "H": 14,
+        "I": 16,
+        "J": 12,
+        "K": 7,
+        "L": 11,
+        "M": 14,
+        "N": 9,
+        "O": 10,
+        "P": 7,
+        "Q": 4,
+        "Quote": 13,
+        "R": 1,
+        "S": 7,
+        "Semicolon": 8,
+        "Slash": 12,
+        "Space": 1,
+        "T": 20,
+        "U": 9,
+        "V": 30,
+        "W": 16,
+        "X": 4,
+        "Y": 11
+      },
+      "top100NormalFallbackWords": [],
+      "top100OneChordWords": 99,
+      "top100ShiftChords": 0,
+      "top100SixKeyChords": 1,
+      "top100TotalChords": 101
+    },
+    "macbook-pro-2021-iso-model": {
+      "compositionCountPredictedBlocked": 3744,
+      "courseNormalFallbackSteps": 0,
+      "courseTotalChords": 764,
+      "examples": {
+        "A": [
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "A"
+          }
+        ],
+        "NASA": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"N\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "N"
+          },
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          },
+          {
+            "action": "chord(keys: [\"S\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "S"
+          },
+          {
+            "action": "chord(keys: [\"N\", \"M\"], shift: false)",
+            "kind": "command",
+            "output": ""
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          }
+        ],
+        "Z": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"Z\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "Z"
+          }
+        ],
+        "and": [
+          {
+            "action": "chord(keys: [\"O\", \"H\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "and"
+          }
+        ],
+        "different": [
+          {
+            "action": "chord(keys: [\"D\", \"F\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "different"
+          }
+        ],
+        "important": [
+          {
+            "action": "chord(keys: [\"T\", \"I\", \"Quote\", \"M\"], shift: false)",
+            "kind": "brief",
+            "output": "important"
+          }
+        ],
+        "int": [
+          {
+            "action": "chord(keys: [\"H\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "in"
+          },
+          {
+            "action": "chord(keys: [\"J\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "t"
+          }
+        ],
+        "sat": [
+          {
+            "action": "chord(keys: [\"S\", \"J\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "sat"
+          }
+        ],
+        "the": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"B\"], shift: false)",
+            "kind": "syllable",
+            "output": "the"
+          }
+        ],
+        "thing": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"K\", \"L\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "thing"
+          }
+        ],
+        "through": [
+          {
+            "action": "chord(keys: [\"R\", \"T\", \"H\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "through"
+          }
+        ],
+        "understanding": [
+          {
+            "action": "chord(keys: [\"U\", \"Quote\", \"N\"], shift: false)",
+            "kind": "brief",
+            "output": "under"
+          },
+          {
+            "action": "chord(keys: [\"T\", \"O\", \"S\", \"H\", \"C\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "stand"
+          },
+          {
+            "action": "chord(keys: [\"K\", \"L\"], shift: false)",
+            "kind": "suffix",
+            "output": "ing"
+          }
+        ],
+        "use": [
+          {
+            "action": "chord(keys: [\"N\"], shift: false)",
+            "kind": "syllable",
+            "output": "u"
+          },
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Slash\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "se"
+          }
+        ],
+        "you": [
+          {
+            "action": "chord(keys: [\"Q\", \"W\", \"C\", \"V\"], shift: false)",
+            "kind": "syllable",
+            "output": "you"
+          }
+        ]
+      },
+      "explicitMappingsPredictedBlocked": [
+        {
+          "file": "layout.txt",
+          "keys": "A+Semicolon+Quote",
+          "meaning": "[fingerspell] \"A\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "H+Semicolon+Quote",
+          "meaning": "[fingerspell] \"H\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "J+Semicolon+Quote",
+          "meaning": "[fingerspell] \"J\""
+        },
+        {
+          "file": "layout.txt",
+          "keys": "K+Semicolon+Quote",
+          "meaning": "[fingerspell] \"K\""
+        }
+      ],
+      "top100ChordCounts": {
+        "I": 1,
+        "a": 1,
+        "about": 1,
+        "after": 1,
+        "all": 1,
+        "also": 1,
+        "an": 1,
+        "and": 1,
+        "any": 1,
+        "as": 1,
+        "at": 1,
+        "back": 1,
+        "be": 1,
+        "because": 1,
+        "but": 1,
+        "by": 1,
+        "can": 1,
+        "come": 1,
+        "could": 1,
+        "day": 1,
+        "do": 1,
+        "even": 1,
+        "first": 1,
+        "for": 1,
+        "from": 1,
+        "get": 1,
+        "give": 1,
+        "go": 1,
+        "good": 1,
+        "have": 1,
+        "he": 1,
+        "her": 1,
+        "him": 1,
+        "his": 1,
+        "how": 1,
+        "if": 1,
+        "in": 1,
+        "into": 1,
+        "it": 1,
+        "its": 1,
+        "just": 1,
+        "know": 1,
+        "like": 1,
+        "look": 1,
+        "make": 1,
+        "me": 1,
+        "most": 1,
+        "my": 1,
+        "new": 1,
+        "no": 1,
+        "not": 1,
+        "now": 1,
+        "of": 1,
+        "on": 1,
+        "one": 1,
+        "only": 1,
+        "or": 1,
+        "other": 1,
+        "our": 1,
+        "out": 1,
+        "over": 1,
+        "people": 1,
+        "say": 1,
+        "see": 1,
+        "she": 1,
+        "so": 1,
+        "some": 1,
+        "take": 1,
+        "than": 1,
+        "that": 1,
+        "the": 1,
+        "their": 1,
+        "them": 1,
+        "then": 1,
+        "there": 1,
+        "these": 1,
+        "they": 1,
+        "think": 1,
+        "this": 1,
+        "time": 1,
+        "to": 1,
+        "two": 1,
+        "up": 1,
+        "us": 1,
+        "use": 2,
+        "want": 1,
+        "way": 1,
+        "we": 1,
+        "well": 1,
+        "what": 1,
+        "when": 1,
+        "which": 1,
+        "who": 1,
+        "will": 1,
+        "with": 1,
+        "work": 1,
+        "would": 1,
+        "year": 1,
+        "you": 1,
+        "your": 1
+      },
+      "top100ItemCount": 100,
+      "top100KeyPressesIncludingShift": 342,
+      "top100KeyUse": {
+        "A": 5,
+        "B": 19,
+        "C": 28,
+        "D": 10,
+        "E": 25,
+        "F": 11,
+        "G": 8,
+        "H": 14,
+        "I": 16,
+        "J": 12,
+        "K": 7,
+        "L": 11,
+        "M": 14,
+        "N": 9,
+        "O": 10,
+        "P": 7,
+        "Q": 4,
+        "Quote": 13,
+        "R": 1,
+        "S": 7,
+        "Semicolon": 8,
+        "Slash": 12,
+        "Space": 1,
+        "T": 20,
+        "U": 9,
+        "V": 30,
+        "W": 16,
+        "X": 4,
+        "Y": 11
+      },
+      "top100NormalFallbackWords": [],
+      "top100OneChordWords": 99,
+      "top100ShiftChords": 0,
+      "top100SixKeyChords": 1,
+      "top100TotalChords": 101
+    },
+    "no-blocking-assumed": {
+      "compositionCountPredictedBlocked": 0,
+      "courseNormalFallbackSteps": 0,
+      "courseTotalChords": 759,
+      "examples": {
+        "A": [
+          {
+            "action": "chord(keys: [\"A\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          }
+        ],
+        "NASA": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"N\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "N"
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          },
+          {
+            "action": "chord(keys: [\"S\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "S"
+          },
+          {
+            "action": "chord(keys: [\"A\", \"Semicolon\", \"Quote\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "A"
+          }
+        ],
+        "Z": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"Quote\", \"Z\"], shift: false)",
+            "kind": "fingerspell",
+            "output": "Z"
+          }
+        ],
+        "and": [
+          {
+            "action": "chord(keys: [\"O\", \"H\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "and"
+          }
+        ],
+        "different": [
+          {
+            "action": "chord(keys: [\"D\", \"F\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "different"
+          }
+        ],
+        "important": [
+          {
+            "action": "chord(keys: [\"T\", \"I\", \"Quote\", \"M\"], shift: false)",
+            "kind": "brief",
+            "output": "important"
+          }
+        ],
+        "int": [
+          {
+            "action": "chord(keys: [\"H\", \"J\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "int"
+          }
+        ],
+        "sat": [
+          {
+            "action": "chord(keys: [\"S\", \"J\", \"C\"], shift: false)",
+            "kind": "syllable",
+            "output": "sat"
+          }
+        ],
+        "the": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"B\"], shift: false)",
+            "kind": "syllable",
+            "output": "the"
+          }
+        ],
+        "thing": [
+          {
+            "action": "chord(keys: [\"E\", \"T\", \"K\", \"L\", \"M\"], shift: false)",
+            "kind": "syllable",
+            "output": "thing"
+          }
+        ],
+        "through": [
+          {
+            "action": "chord(keys: [\"R\", \"T\", \"H\", \"Quote\"], shift: false)",
+            "kind": "brief",
+            "output": "through"
+          }
+        ],
+        "understanding": [
+          {
+            "action": "chord(keys: [\"U\", \"Quote\", \"N\"], shift: false)",
+            "kind": "brief",
+            "output": "under"
+          },
+          {
+            "action": "chord(keys: [\"T\", \"O\", \"S\", \"H\", \"C\", \"Space\"], shift: false)",
+            "kind": "syllable",
+            "output": "stand"
+          },
+          {
+            "action": "chord(keys: [\"K\", \"L\"], shift: false)",
+            "kind": "suffix",
+            "output": "ing"
+          }
+        ],
+        "use": [
+          {
+            "action": "chord(keys: [\"Semicolon\", \"N\", \"Slash\"], shift: false)",
+            "kind": "syllable",
+            "output": "use"
+          }
+        ],
+        "you": [
+          {
+            "action": "chord(keys: [\"Q\", \"W\", \"C\", \"V\"], shift: false)",
+            "kind": "syllable",
+            "output": "you"
+          }
+        ]
+      },
+      "explicitMappingsPredictedBlocked": [],
+      "top100ChordCounts": {
+        "I": 1,
+        "a": 1,
+        "about": 1,
+        "after": 1,
+        "all": 1,
+        "also": 1,
+        "an": 1,
+        "and": 1,
+        "any": 1,
+        "as": 1,
+        "at": 1,
+        "back": 1,
+        "be": 1,
+        "because": 1,
+        "but": 1,
+        "by": 1,
+        "can": 1,
+        "come": 1,
+        "could": 1,
+        "day": 1,
+        "do": 1,
+        "even": 1,
+        "first": 1,
+        "for": 1,
+        "from": 1,
+        "get": 1,
+        "give": 1,
+        "go": 1,
+        "good": 1,
+        "have": 1,
+        "he": 1,
+        "her": 1,
+        "him": 1,
+        "his": 1,
+        "how": 1,
+        "if": 1,
+        "in": 1,
+        "into": 1,
+        "it": 1,
+        "its": 1,
+        "just": 1,
+        "know": 1,
+        "like": 1,
+        "look": 1,
+        "make": 1,
+        "me": 1,
+        "most": 1,
+        "my": 1,
+        "new": 1,
+        "no": 1,
+        "not": 1,
+        "now": 1,
+        "of": 1,
+        "on": 1,
+        "one": 1,
+        "only": 1,
+        "or": 1,
+        "other": 1,
+        "our": 1,
+        "out": 1,
+        "over": 1,
+        "people": 1,
+        "say": 1,
+        "see": 1,
+        "she": 1,
+        "so": 1,
+        "some": 1,
+        "take": 1,
+        "than": 1,
+        "that": 1,
+        "the": 1,
+        "their": 1,
+        "them": 1,
+        "then": 1,
+        "there": 1,
+        "these": 1,
+        "they": 1,
+        "think": 1,
+        "this": 1,
+        "time": 1,
+        "to": 1,
+        "two": 1,
+        "up": 1,
+        "us": 1,
+        "use": 1,
+        "want": 1,
+        "way": 1,
+        "we": 1,
+        "well": 1,
+        "what": 1,
+        "when": 1,
+        "which": 1,
+        "who": 1,
+        "will": 1,
+        "with": 1,
+        "work": 1,
+        "would": 1,
+        "year": 1,
+        "you": 1,
+        "your": 1
+      },
+      "top100ItemCount": 100,
+      "top100KeyPressesIncludingShift": 341,
+      "top100KeyUse": {
+        "A": 5,
+        "B": 19,
+        "C": 28,
+        "D": 10,
+        "E": 25,
+        "F": 11,
+        "G": 8,
+        "H": 14,
+        "I": 16,
+        "J": 12,
+        "K": 7,
+        "L": 11,
+        "M": 14,
+        "N": 9,
+        "O": 10,
+        "P": 7,
+        "Q": 4,
+        "Quote": 13,
+        "R": 1,
+        "S": 7,
+        "Semicolon": 8,
+        "Slash": 12,
+        "T": 20,
+        "U": 9,
+        "V": 30,
+        "W": 16,
+        "X": 4,
+        "Y": 11
+      },
+      "top100NormalFallbackWords": [],
+      "top100OneChordWords": 100,
+      "top100ShiftChords": 0,
+      "top100SixKeyChords": 1,
+      "top100TotalChords": 100
+    }
+  }
+}

@@ -20,7 +20,7 @@ struct CourseTests {
         var used = Set<Course.Skill>()
         for (name, usable) in keyboards {
             let g = TypingPlanner(data: defaults, mode: step.mode, usable: usable).plan(step.text)
-            if try replay(g) != normalizedNewlines(step.text) { problems.append("\(name): the plan types something else") }
+            if try replayPractice(g, text: step.text) != normalizedNewlines(step.text) { problems.append("\(name): the plan types something else") }
             for s in g.steps {
                 let lo = max(0, min(s.source.lowerBound, chars.count)), hi = max(lo, min(s.source.upperBound, chars.count))
                 let word = String(chars[lo..<hi])
@@ -102,6 +102,110 @@ struct CourseTests {
         #expect(show(.command(.capitalizeNext)) == ["capital on the next word=N+M"])
         #expect(show(.symbol(";"), .cpp) == [";=Semicolon"])
         #expect(show(.pairs(.onset)).contains("th=E+T"))
+    }
+
+    @Test("Introductions use small sets and pair examples only combine learned components")
+    func stagedIntroductions() throws {
+        for (index, step) in Course.steps.enumerated() {
+            #expect(step.new.count <= 4, "\(step.id) introduces too many skills")
+            let known = Course.taught(through: index, data: defaults)
+            for skill in step.new {
+                let chords = Course.introductionChords(for: skill, at: index, data: defaults)
+                #expect(!chords.isEmpty)
+                if case .pairs(let bank) = skill {
+                    #expect(chords.count <= 3)
+                    for chord in chords {
+                        let pair = try #require(Course.pairClusters(bank, data: defaults).first { $0.keys == chord.keys })
+                        #expect(pair.singles.allSatisfy { known.contains(.sound(bank, $0)) })
+                    }
+                }
+            }
+        }
+        let index = try #require(Course.index(of: "start-pairs"))
+        #expect(Course.introductionChords(for: .pairs(.onset), at: index, data: defaults).map(\.label) == ["th", "sh", "st"])
+        #expect(Course.chords(for: .pairs(.onset), data: defaults, mode: .english).count > 3)
+    }
+
+    @Test("Legacy completion covers the smaller replacement lessons only during version migration")
+    func progressMigration() throws {
+        let currentIDs = Set(Course.steps.map(\.id))
+        for (original, additions) in Course.legacyLessonExpansions {
+            #expect(currentIDs.contains(original))
+            #expect(additions.isSubset(of: currentIDs))
+            let migrated = Course.migratedCompletedIDs([original, "unknown-old-id"], fromVersion: 1)
+            #expect(migrated == additions.union([original, "unknown-old-id"]))
+            #expect(Course.migratedCompletedIDs(migrated, fromVersion: Course.curriculumVersion) == migrated)
+            #expect(Course.migratedCompletedIDs([original], fromVersion: Course.curriculumVersion) == [original])
+        }
+        #expect(Course.migratedCompletedIDs([], fromVersion: 1).isEmpty)
+        // Newly completed first-chord must not silently teach the later end n.
+        let first = Course.learnedSkills(completedIDs: ["first-chord"], data: defaults)
+        #expect(!first.contains(.sound(.coda, "n")))
+        let legacyFirst = Course.learnedSkills(completedIDs: Course.migratedCompletedIDs(["first-chord"], fromVersion: 1), data: defaults)
+        #expect(legacyFirst.contains(.sound(.coda, "n")))
+        #expect(legacyFirst.contains(.sound(.onset, "t")))
+    }
+
+    @Test("All 34 legacy lessons retain their identifiers and original introduced skills after migration")
+    func legacySkillPreservation() throws {
+        func sounds(_ bank: Bank, _ texts: [String]) -> Set<Course.Skill> { Set(texts.map { .sound(bank, $0) }) }
+        func words(_ texts: [String]) -> Set<Course.Skill> { Set(texts.map { .word($0) }) }
+        let original: [String: Set<Course.Skill>] = [
+            "first-chord": sounds(.onset, ["s", "h", "t"]).union(sounds(.vowel, ["a"])).union(sounds(.coda, ["t", "n"])),
+            "vowels": sounds(.vowel, ["o", "e", "i", "u"]).union(words(["I"])),
+            "home-row": sounds(.onset, ["r", "f", "d", "l", "g"]).union(sounds(.coda, ["d", "s"])).union([.command(.undo)]),
+            "start-pairs": [.pairs(.onset)],
+            "top-row-ends": sounds(.coda, ["y", "r", "m", "p"]),
+            "last-keys": sounds(.onset, ["w", "b", "z"]).union(sounds(.coda, ["e"])),
+            "syllables-review": [],
+            "two-key-starts": sounds(.onset, ["m", "n", "p", "c", "k"]),
+            "more-two-key-starts": sounds(.onset, ["y", "j", "v", "ch"]),
+            "end-pairs": [.pairs(.coda)],
+            "two-key-ends": sounds(.coda, ["g", "b", "f", "w", "x"]),
+            "end-sounds": sounds(.coda, ["ng", "ck", "ll", "sh", "ch", "th", "ss", "ft", "ct", "k", "l"]),
+            "blends": sounds(.onset, ["cl", "cr", "pl", "pr", "sk", "sm", "sn", "sp", "kn", "qu"]),
+            "vowel-pairs": sounds(.vowel, ["ea", "ee", "oo", "ou", "ai"]),
+            "silent-e-ends": sounds(.coda, ["ve", "ce", "ge"]),
+            "two-key-review": [],
+            "s-ed": [.ending("s"), .ending("ed")],
+            "ing-er": Set(["ing", "er", "est", "ly"].map { .ending($0) }),
+            "more-endings": Set(["ness", "ment", "able", "ful"].map { .ending($0) }),
+            "full-stop": [.symbol("."), .symbol(",")],
+            "capitals": [.command(.capitalizeNext)],
+            "questions": [.symbol("?"), .symbol("!")],
+            "more-punctuation": Set([":", ";", "'", "-"].map { .symbol($0) }),
+            "quotes": [.symbol("\""), .symbol("("), .symbol(")")],
+            "word-chords": words(["their", "about", "people", "into", "other", "only", "over", "also", "after", "first"]),
+            "more-word-chords": words(["because", "through", "before", "between", "never", "every", "little", "different", "important", "something"]),
+            "join": [.join],
+            "shift-join": [.shiftJoin],
+            "spelling": [.spell, .capitalLetter],
+            "numbers": [.digits, .space],
+            "cpp-mode": words(["int", "return", "const", "auto", "void", "bool"]).union([.command(.modeSwitch)]),
+            "cpp-symbols": Set(["=", "==", "+", "-", ";", "(", ")", "{", "}"].map { .symbol($0) }),
+            "cpp-names": [.command(.casing(.snake)), .command(.casing(.screamingSnake)), .command(.endIdentifier)],
+            "cpp-program": [.newLine],
+        ]
+        #expect(original.count == 34)
+        #expect(Course.steps.count == 52)
+        #expect(Set(Course.legacyLessonExpansions.keys).isSubset(of: Set(original.keys)))
+        for (id, expected) in original {
+            #expect(Course.index(of: id) != nil, "Original identifier \(id) must remain available")
+            let migrated = Course.migratedCompletedIDs([id], fromVersion: 1)
+            let actual = Set(Course.steps.filter { migrated.contains($0.id) }.flatMap(\.new))
+            #expect(actual == expected, "\(id): replacement lessons changed the original skill set")
+        }
+        let allMigrated = Course.migratedCompletedIDs(Set(original.keys), fromVersion: 1)
+        #expect(allMigrated == Set(Course.steps.map(\.id)))
+    }
+
+    @Test("Sparse completion derives pairs only when both components were learned")
+    func sparseLearnedSkills() {
+        let sparse = Course.learnedSkills(completedIDs: ["first-chord", "start-pairs", "cpp-mode"], data: defaults)
+        #expect(sparse.contains(.sound(.onset, "sh")))
+        #expect(!sparse.contains(.sound(.onset, "th")))
+        #expect(!sparse.contains(.word("int")))
+        #expect(!sparse.contains(.word("their")))
     }
 
     /// Prints, for each English step, dictionary words typed with only what the course has taught by then and

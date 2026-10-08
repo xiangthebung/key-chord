@@ -77,6 +77,35 @@ public enum Course {
 
     public static func index(of id: String) -> Int? { steps.firstIndex { $0.id == id } }
 
+    /// Version 2 divides dense introductions while keeping their original identifiers.
+    public static let curriculumVersion = 2
+
+    /// Completion of an old lesson covers all of the smaller lessons that replaced its content.
+    /// Call only when loading persisted progress, then save the current curriculum version.
+    public static func migratedCompletedIDs(_ ids: Set<String>, fromVersion: Int) -> Set<String> {
+        guard fromVersion < curriculumVersion else { return ids }
+        var migrated = ids
+        for (original, additions) in legacyLessonExpansions where ids.contains(original) {
+            migrated.formUnion(additions)
+        }
+        return migrated
+    }
+
+    public static let legacyLessonExpansions: [String: Set<String>] = [
+        "first-chord": ["first-ends"],
+        "vowels": ["right-thumb-vowels"],
+        "home-row": ["home-row-more"],
+        "two-key-starts": ["two-key-starts-ck"],
+        "two-key-ends": ["two-key-ends-wx"],
+        "end-sounds": ["end-sounds-sh-ch-th", "end-sounds-ss-ft-ct", "end-sounds-kl"],
+        "blends": ["blends-pr-sk-sm", "blends-sn-sp-kn-qu"],
+        "vowel-pairs": ["vowel-pairs-ou-ai"],
+        "word-chords": ["word-chords-into-other-only", "word-chords-over-also-after-first"],
+        "more-word-chords": ["more-word-chords-between-never-every", "more-word-chords-little-different-important-something"],
+        "cpp-mode": ["cpp-more-keywords"],
+        "cpp-symbols": ["cpp-symbols-round", "cpp-symbols-braces"],
+    ]
+
     /// The unit step `i` belongs to, and its place in that unit (both 0-based).
     public static func position(of i: Int) -> (unit: Int, step: Int) {
         var first = 0
@@ -96,9 +125,15 @@ public enum Course {
     /// that `pairs` covers in `data`'s layout.
     public static func taught(through i: Int, data: EngineData) -> Set<Skill> {
         guard i >= 0, i < steps.count else { return [] }
-        let mode = steps[i].mode
+        return learnedSkills(completedIDs: Set(steps[...i].map(\.id)), data: data, mode: steps[i].mode)
+    }
+
+    /// Skills from completed lessons, including pair rules only for components actually learned.
+    /// Unlike a contiguous course index, this also supports learners who explored lessons out of order.
+    public static func learnedSkills(completedIDs: Set<String>, data: EngineData,
+                                     mode: SubMode = .english) -> Set<Skill> {
         var out = Set<Skill>()
-        for s in steps[...i] {
+        for s in steps where completedIDs.contains(s.id) {
             for k in s.new where s.mode == mode || k.carriesOver { out.insert(k) }
         }
         for bank in Bank.allCases where out.contains(.pairs(bank)) {
@@ -261,6 +296,25 @@ public enum Course {
         }
     }
 
+    /// A small teaching list. Exhaustive pair tables belong in Reference, not a first introduction.
+    public static func introductionChords(for skill: Skill, at index: Int, data: EngineData) -> [Chord] {
+        guard steps.indices.contains(index) else { return [] }
+        guard case .pairs(let bank) = skill else {
+            return chords(for: skill, data: data, mode: steps[index].mode)
+        }
+        let known = taught(through: index, data: data)
+        let preferred = bank == .onset ? ["th", "sh", "st"] : ["nd", "te", "me"]
+        let available = pairClusters(bank, data: data).filter { cluster in
+            cluster.singles.allSatisfy { known.contains(.sound(bank, $0)) }
+        }.sorted {
+            let left = preferred.firstIndex(of: $0.text) ?? preferred.count
+            let right = preferred.firstIndex(of: $1.text) ?? preferred.count
+            return (left, $0.text, $0.keys.bits) < (right, $1.text, $1.keys.bits)
+        }
+        let role: KeyMeanings.Role = bank == .onset ? .onset : bank == .vowel ? .vowel : .coda
+        return available.prefix(3).map { Chord(label: $0.text, keys: $0.keys, role: role) }
+    }
+
     // MARK: The course
 
     private static func start(_ s: String...) -> [Skill] { s.map { .sound(.onset, $0) } }
@@ -273,24 +327,35 @@ public enum Course {
     public static let units: [Unit] = [
         Unit(title: "Syllables", steps: [
             Step(id: "first-chord", title: "Your first chord",
-                 intro: "Tap the right ⌥ Option key to turn chord typing on: the menu bar shows English. A word is "
-                    + "its start, its vowel and its end. Press all their keys together, then let go. KeyChord "
-                    + "puts the space before each word.",
-                 new: start("s", "h", "t") + vowel("a") + end("t", "n"),
-                 text: "a hat sat at a tan hat an at sat tan"),
-            Step(id: "vowels", title: "All five vowels",
-                 intro: "The thumbs play the vowels on the bottom row: a, o and e with the left thumb, u and i with "
-                    + "the right. The i key alone types the word “I”.",
-                 new: vowel("o", "e", "i", "u") + words("I"),
-                 text: "I sit in a hot tin hut he set ten in it on a sun hat"),
-            Step(id: "home-row", title: "More starts and ends",
-                 intro: "The left hand starts words, the right hand ends them. A word doesn't need all three parts: "
-                    + "leave out what it doesn't have, as in “is”. If a chord types the wrong thing, undo takes "
-                    + "it back.",
-                 new: start("r", "f", "d", "l", "g") + end("d", "s") + [.command(.undo)],
-                 text: "he is red as a fat rat I did let us get his gun dad had a lot it is fun to run"),
-            Step(id: "start-pairs", title: "Two sounds at the start",
-                 intro: "Two sounds in a row at the start of a word: press both of their keys. The t and h keys "
+                 intro: "Tap the right ⌥ Option key to turn chord typing on: the menu bar shows English. Press "
+                    + "the start, vowel and end together, then release every key before the next chord. "
+                    + "KeyChord puts the space before each word.",
+                 new: start("s", "h") + vowel("a") + end("t"),
+                 text: "a hat sat at a hat sat"),
+            Step(id: "first-ends", title: "t at the start, n at the end",
+                 intro: "The left hand starts a word; the right hand ends it. Add t at the start and n at the "
+                    + "end. Leave out any part the word doesn't need.",
+                 new: start("t") + end("n"),
+                 text: "a tan hat an at sat tan"),
+            Step(id: "vowels", title: "The left thumb vowels",
+                 intro: "The left thumb plays a, o and e on the bottom row. Add o and e to the letters you know.",
+                 new: vowel("o", "e"),
+                 text: "he set ten on a hot hat"),
+            Step(id: "right-thumb-vowels", title: "i, u and I",
+                 intro: "The right thumb plays i and u. The i key alone types the word “I”.",
+                 new: vowel("i", "u") + words("I"),
+                 text: "I sit in a tin hut in it on a sun hat"),
+            Step(id: "home-row", title: "r, f and d",
+                 intro: "Add three starts and the end d. The left hand starts words and the right hand ends them.",
+                 new: start("r", "f", "d") + end("d"),
+                 text: "a red rat a fat dad I did run"),
+            Step(id: "home-row-more", title: "l, g, s and undo",
+                 intro: "Add l and g at the start, and s at the end. If a chord types the wrong thing, undo takes "
+                    + "it back. A word can leave out parts, as in “is”.",
+                 new: start("l", "g") + end("s") + [.command(.undo)],
+                 text: "he is red as I let us get his gun a lot it is fun"),
+            Step(id: "start-pairs", title: "Two letters at the start",
+                 intro: "Two letters in a row at the start of a word: press both of their keys. The t and h keys "
                     + "make th, s and h make sh, s and t make st.",
                  new: [.pairs(.onset)],
                  text: "the hat is flat she shut the lid that is the shed then she fled the rat slid on the sled"),
@@ -304,51 +369,81 @@ public enum Course {
                  new: start("w", "b", "z") + end("e"),
                  text: "we sat on the wet bus but she was hot who is that boy why is he in a tree we bet it is "
                     + "true zip it"),
-            Step(id: "syllables-review", title: "Review: one key for each sound",
-                 intro: "Every sound so far has a key of its own. Try the words without looking at the chords. "
+            Step(id: "syllables-review", title: "Review: single-key letters",
+                 intro: "Each letter mapping so far has a key of its own. Try the words without looking at the chords. "
                     + "To keep the keyboard on screen while you type in other apps, turn on the Reference "
                     + "Overlay in the KeyChord menu.",
                  new: [],
                  text: "sit hit fit set get wet sun fun run rat sat hat red bed led tip dip lip hot dot lot"),
         ]),
-        Unit(title: "Two-key sounds", steps: [
+        Unit(title: "Letter groups", steps: [
             Step(id: "two-key-starts", title: "Letters with two keys",
                  intro: "Some letters have no key of their own at the start of a word: they take two keys, pressed "
                     + "together with the rest of the chord.",
-                 new: start("m", "n", "p", "c", "k"),
-                 text: "a man can pat a cat my pet put the pan on the mat no kid can nap in a cup"),
+                 new: start("m", "n", "p"),
+                 text: "a man my pet put the pan on the mat no nap"),
+            Step(id: "two-key-starts-ck", title: "c and k at the start",
+                 intro: "Two more letters use two keys at the start: c and k.",
+                 new: start("c", "k"),
+                 text: "a cat can nap a kid in a cup"),
             Step(id: "more-two-key-starts", title: "y, j, v and ch",
                  intro: "Four more starts that take two keys.",
                  new: start("y", "j", "v", "ch"),
                  text: "yes we can chat in the van yet the jet is hot jam on a chip a joy"),
-            Step(id: "end-pairs", title: "Two sounds at the end",
-                 intro: "At the end of a word too, two sounds that each have a key take both keys: n and d make "
+            Step(id: "end-pairs", title: "Two letters at the end",
+                 intro: "At the end of a word too, two letters that each have a key take both keys: n and d make "
                     + "nd. With the silent e key, t makes te and m makes me.",
                  new: [.pairs(.coda)],
                  text: "and then she went home to find a card I want to rest at the camp just for a time"),
             Step(id: "two-key-ends", title: "Letters with two keys at the end",
-                 intro: "At the end of a word, g, b, f, w and x take two keys.",
-                 new: end("g", "b", "f", "w", "x"),
-                 text: "the big dog dug in the fog a fox in a box if we can how now a cab at six"),
-            Step(id: "end-sounds", title: "ng, ck, ll, sh, ch and th",
-                 intro: "These ends have keys of their own: learn them like single letters. k and l end words too, "
-                    + "alone or in pairs such as ke and ld.",
-                 new: end("ng", "ck", "ll", "sh", "ch", "th", "ss", "ft", "ct", "k", "l"),
-                 text: "sing a song with my pal the king will wish for a fish in a wok back in the bath "
-                    + "I told him to make a gift in fact much less"),
-            Step(id: "blends", title: "More starts with keys of their own",
-                 intro: "These starts don't use the keys of their two letters: learn their keys like single letters.",
-                 new: start("cl", "cr", "pl", "pr", "sk", "sm", "sn", "sp", "kn", "qu"),
-                 text: "clap and plan a trip skip the small crab snap spin the top press it I know it is quick"),
-            Step(id: "vowel-pairs", title: "Vowel pairs",
-                 intro: "Two vowels together take two thumb keys.",
-                 new: vowel("ea", "ee", "oo", "ou", "ai"),
-                 text: "read a book at the sea we see a green tree and good food out in the rain I wait on my feet"),
+                 intro: "At the end of a word, g, b and f take two keys.",
+                 new: end("g", "b", "f"),
+                 text: "the big dog dug in the fog a cab if we can"),
+            Step(id: "two-key-ends-wx", title: "w and x at the end",
+                 intro: "Add two more ends that take two keys: w and x.",
+                 new: end("w", "x"),
+                 text: "how now a fox in a box at six"),
+            Step(id: "end-sounds", title: "ng, ck and ll",
+                 intro: "These ends have keys of their own. Learn each mapping as a new letter group.",
+                 new: end("ng", "ck", "ll"),
+                 text: "sing a song the king will go back"),
+            Step(id: "end-sounds-sh-ch-th", title: "sh, ch and th at the end",
+                 intro: "Three familiar letter groups get different mappings at the end of a word.",
+                 new: end("sh", "ch", "th"),
+                 text: "wish for a fish in the bath with much joy"),
+            Step(id: "end-sounds-ss-ft-ct", title: "ss, ft and ct",
+                 intro: "These three ends also have mappings of their own.",
+                 new: end("ss", "ft", "ct"),
+                 text: "a gift in fact much less"),
+            Step(id: "end-sounds-kl", title: "k and l at the end",
+                 intro: "k and l end words too, alone or combined with known keys such as ke and ld.",
+                 new: end("k", "l"),
+                 text: "my pal in a wok I told him to make it"),
+            Step(id: "blends", title: "cl, cr and pl",
+                 intro: "These starts have mappings of their own. Learn their keys like single letters.",
+                 new: start("cl", "cr", "pl"),
+                 text: "clap and plan with a crab"),
+            Step(id: "blends-pr-sk-sm", title: "pr, sk and sm",
+                 intro: "Add three more starts with their own mappings.",
+                 new: start("pr", "sk", "sm"),
+                 text: "press it skip the small step"),
+            Step(id: "blends-sn-sp-kn-qu", title: "sn, sp, kn and qu",
+                 intro: "Finish this set with four starts, each with its own mapping.",
+                 new: start("sn", "sp", "kn", "qu"),
+                 text: "snap spin the top I know it is quick"),
+            Step(id: "vowel-pairs", title: "ea, ee and oo",
+                 intro: "Two vowels together take two thumb keys. Begin with ea, ee and oo.",
+                 new: vowel("ea", "ee", "oo"),
+                 text: "read a book at the sea we see a green tree and good food"),
+            Step(id: "vowel-pairs-ou-ai", title: "ou and ai",
+                 intro: "Add ou and ai with two thumb keys.",
+                 new: vowel("ou", "ai"),
+                 text: "out in the rain I wait"),
             Step(id: "silent-e-ends", title: "ve, ce and ge",
                  intro: "Three ends with a silent e have keys of their own.",
                  new: end("ve", "ce", "ge"),
                  text: "have a nice day give me the page I love the face of the huge cave"),
-            Step(id: "two-key-review", title: "Review: two-key sounds",
+            Step(id: "two-key-review", title: "Review: letter groups",
                  intro: "Starts, vowels and ends with two keys, all together.",
                  new: [],
                  text: "sea tea read seed feed out loud food good rain tail the ship the sheep a fresh plant "
@@ -394,18 +489,31 @@ public enum Course {
                  text: "She said: \"Thank you.\" Tom (my pal) is here."),
         ]),
         Unit(title: "Common words", steps: [
-            Step(id: "word-chords", title: "Words with a chord of their own",
-                 intro: "Many long common words have a chord of their own: the spell key with a few of the word's "
-                    + "letters, by the keys printed with them.",
-                 new: words("their", "about", "people", "into", "other", "only", "over", "also", "after", "first"),
-                 text: "I think people like their work. We have other things to do after that, but only for "
-                    + "a short time. It is also about the first one. We went into the shop and over the top."),
-            Step(id: "more-word-chords", title: "More word chords",
-                 intro: "Ten more words with chords of their own.",
-                 new: words("because", "through", "before", "between", "never", "every", "little", "different",
-                            "important", "something"),
-                 text: "It is important because every little thing is different. Something came through before, "
-                    + "but never between us."),
+            Step(id: "word-chords", title: "their, about and people",
+                 intro: "Common words can have a chord of their own: the spell key with a few of the word's "
+                    + "letters. Begin with these three words.",
+                 new: words("their", "about", "people"),
+                 text: "People like their work. It is about time."),
+            Step(id: "word-chords-into-other-only", title: "into, other and only",
+                 intro: "Learn three more useful word chords.",
+                 new: words("into", "other", "only"),
+                 text: "We went into the shop. We have other things to do, but only for a short time."),
+            Step(id: "word-chords-over-also-after-first", title: "over, also, after and first",
+                 intro: "Add four word chords, then use them together with the words you know.",
+                 new: words("over", "also", "after", "first"),
+                 text: "It is also the first one. We went over the top after that."),
+            Step(id: "more-word-chords", title: "because, through and before",
+                 intro: "Three more words have chords of their own.",
+                 new: words("because", "through", "before"),
+                 text: "We came through before because it was hot."),
+            Step(id: "more-word-chords-between-never-every", title: "between, never and every",
+                 intro: "Add three word chords and use the earlier ones again.",
+                 new: words("between", "never", "every"),
+                 text: "Every day we sat between them. We never went before."),
+            Step(id: "more-word-chords-little-different-important-something", title: "little, different, important and something",
+                 intro: "Four final word chords for this unit. Mix them with the words you have learned.",
+                 new: words("little", "different", "important", "something"),
+                 text: "Every little thing is different. Something is important."),
         ]),
         Unit(title: "Long words", steps: [
             Step(id: "join", title: "Join with the space bar",
@@ -432,16 +540,32 @@ public enum Course {
                  text: "I have 2 cats and 10 dogs. It is 2026. The code is 12 34."),
         ]),
         Unit(title: "C++", steps: [
-            Step(id: "cpp-mode", title: "C++ mode",
-                 intro: "This chord switches KeyChord between English and C++; the menu bar shows which one is on. "
-                    + "Switch to C++ now. Keywords have chords of their own.",
-                 new: [.command(.modeSwitch)] + words("int", "return", "const", "auto", "void", "bool"),
-                 text: "int const auto void bool return",
+            Step(id: "cpp-mode", title: "C++ mode and keywords",
+                 intro: "Code practice switches to C++ automatically. Outside practice, this chord switches "
+                    + "between English and C++. Begin with three keyword chords.",
+                 new: [.command(.modeSwitch)] + words("int", "return", "const"),
+                 text: "int const return",
                  mode: .cpp),
-            Step(id: "cpp-symbols", title: "Operators and brackets",
-                 intro: "Operators get a space on each side; brackets and semicolons attach where they belong.",
-                 new: symbols("=", "==", "+", "-", ";", "(", ")", "{", "}"),
-                 text: "int count = 0; count = count + 1 - 2; if (count == 2) { return count; }",
+            Step(id: "cpp-more-keywords", title: "auto, void and bool",
+                 intro: "Three more keywords have chords of their own.",
+                 new: words("auto", "void", "bool"),
+                 text: "auto void bool int return",
+                 mode: .cpp),
+            Step(id: "cpp-symbols", title: "Assignment and arithmetic",
+                 intro: "Operators get a space on each side. The semicolon attaches to the word before it.",
+                 new: symbols("=", "+", "-", ";"),
+                 text: "int count = 0; count = count + 1 - 2;",
+                 mode: .cpp),
+            Step(id: "cpp-symbols-round", title: "Comparisons and parentheses",
+                 intro: "Use == to compare values. Opening parentheses attach to the next word, closing ones to "
+                    + "the word before.",
+                 new: symbols("==", "(", ")"),
+                 text: "if (count == 2) return count;",
+                 mode: .cpp),
+            Step(id: "cpp-symbols-braces", title: "Braces",
+                 intro: "Braces enclose a block of code. Use the operators and keywords you know inside them.",
+                 new: symbols("{", "}"),
+                 text: "if (count == 2) { return count; }",
                  mode: .cpp),
             Step(id: "cpp-names", title: "Names",
                  intro: "Start a name with its style, then type its words: KeyChord joins them with _ or capitals.",

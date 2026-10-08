@@ -1,17 +1,24 @@
-// Chords as styled text, for the reference overlay and the course: keys by the legend printed on them, and
-// meanings colored like the keyboard picture.
+// Chords as styled text, following the key-label preference with meanings colored like the keyboard.
 
 import AppKit
 import KeyChordCore
 
 enum ChordText {
     /// "E + T" for Layout key names.
-    static func keys(_ names: [String], layout: Layout) -> String {
-        names.map { n in layout.indexByName[n].map { KeyboardDiagramView.name(for: layout.keys[$0].code) } ?? n }
+    static func keys(_ names: [String], layout: Layout, meanings: KeyMeanings? = nil) -> String {
+        let style = Settings().keyLabelStyle
+        return names.map { n in
+            guard let index = layout.indexByName[n] else { return n }
+            let code = layout.keys[index].code
+            let physical = KeyboardDiagramView.name(for: code)
+            return meanings?.label(for: code, physical: physical, style: style) ?? physical
+        }
             .joined(separator: " + ")
     }
 
-    static func keys(_ set: KeySet, layout: Layout) -> String { keys(layout.names(set), layout: layout) }
+    static func keys(_ set: KeySet, layout: Layout, meanings: KeyMeanings? = nil) -> String {
+        keys(layout.names(set), layout: layout, meanings: meanings)
+    }
 
     /// The color of a chord part, as on the keyboard.
     static func color(for role: TypingStep.Part.Role) -> NSColor {
@@ -27,7 +34,8 @@ enum ChordText {
     }
 
     /// "th E + T  ·  i M  ·  ng K + L   →  thing", dimmed for a chord already typed.
-    static func reading(_ r: ChordReading, layout: Layout, size: CGFloat, dim: Bool = false) -> NSAttributedString {
+    static func reading(_ r: ChordReading, layout: Layout, size: CGFloat, dim: Bool = false,
+                        meanings: KeyMeanings? = nil) -> NSAttributedString {
         let out = NSMutableAttributedString()
         let alpha: CGFloat = dim ? 0.55 : 1
         func add(_ s: String, _ color: NSColor, bold: Bool = false, smaller: Bool = false) {
@@ -40,8 +48,12 @@ enum ChordText {
         }
         for (i, p) in parts.enumerated() {
             if i > 0 { add("  ·  ", .tertiaryLabelColor) }
-            add(TypingGuideWindowController.visible(p.text), p.text == "?" ? .systemOrange : color(for: p.role), bold: true)
-            add(" " + (p.keys == ["⇧"] ? "⇧" : keys(p.keys, layout: layout)), .secondaryLabelColor, smaller: true)
+            let meaning = p.role == .command ? p.text : TypingGuideWindowController.visible(p.text)
+            add(meaning, p.text == "?" ? .systemOrange : color(for: p.role), bold: true)
+            let keysText = p.keys == ["⇧"]
+                ? meanings?.label(for: 56, physical: "⇧", style: Settings().keyLabelStyle) ?? "⇧"
+                : keys(p.keys, layout: layout, meanings: meanings)
+            add(" " + keysText, .secondaryLabelColor, smaller: true)
         }
         add("   →  ", .tertiaryLabelColor)
         switch r.outcome {
@@ -70,10 +82,14 @@ enum ChordText {
     }
 
     /// The chords a course step introduces.
-    static func chords(_ chords: [Course.Chord], layout: Layout, size: CGFloat, limit: Int = 20) -> NSAttributedString {
+    static func chords(_ chords: [Course.Chord], layout: Layout, size: CGFloat, limit: Int = 20,
+                       meanings: KeyMeanings? = nil) -> NSAttributedString {
         var list = chords.prefix(limit).map { c -> (label: String, keys: String, color: NSColor) in
-            var k = c.keys.isEmpty ? "" : keys(c.keys, layout: layout)
-            if c.shift { k = k.isEmpty ? "⇧ Shift" : "⇧ + " + k }
+            var k = c.keys.isEmpty ? "" : keys(c.keys, layout: layout, meanings: meanings)
+            if c.shift {
+                let join = meanings?.label(for: 56, physical: "⇧", style: Settings().keyLabelStyle) ?? "⇧"
+                k = k.isEmpty ? join : join + " + " + k
+            }
             if let note = c.note { k += k.isEmpty ? note : " (\(note))" }
             return (c.label, k, c.role.map(KeyboardDiagramView.color(for:)) ?? .labelColor)
         }

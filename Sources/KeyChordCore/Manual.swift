@@ -233,7 +233,7 @@ public enum Manual {
             h += """
             <h1>Learn KeyChord</h1>
             <p class="lead">KeyChord types whole syllables and words at once. Press a few keys together, let go,
-            and the text appears. This manual starts with single sounds and builds up to full sentences; each part
+            and the text appears. This manual starts with letters and builds up to full sentences; each part
             ends with a practice text for the Typing Guide.</p>
             <p class="callout">New to chords? <a href="keychord://course">Take the course</a>: \(Course.steps.count)
             short steps that teach a few keys at a time, each with a text that uses only what you have learned so far.
@@ -268,13 +268,13 @@ public enum Manual {
             use the key in the same place.</p>
 
             <h2 id="syllables">Syllables</h2>
-            <p>Look for the start, the vowel and the end of the syllable, and press all their keys at once.
-            Leave out the parts a word doesn't have.</p>
+            <p>Use the word's spelling: combine its start letters, vowel and end letters in one chord.
+            Leave out the parts a word doesn't have. Release every key before starting the next chord.</p>
             \(example("sat"))\(example("stop"))\(example("thing"))\(example("rain"))
-            <p>Many sounds take two keys. Here is every sound:</p>
-            <h3><span class="t onset">Start</span> sounds</h3>\(table(clusters(.onset)))
+            <p>Some letters and letter groups take two keys. The full reference is below:</p>
+            <h3><span class="t onset">Start</span> letters</h3>\(table(clusters(.onset)))
             <h3><span class="t vowel">Vowels</span></h3>\(table(clusters(.vowel)))
-            <h3><span class="t coda">End</span> sounds</h3>\(table(clusters(.coda)))
+            <h3><span class="t coda">End</span> letters</h3>\(table(clusters(.coda)))
             \(lessonLink(0)) \(lessonLink(1))
 
             <h2 id="words">Common words</h2>
@@ -362,11 +362,13 @@ public enum Manual {
             </ol>
 
             <h2 id="limits">When a chord doesn't work</h2>
-            <p>A keyboard can only report so many keys at once: the MacBook reports at most six, and some groups
-            of three keys can't be told apart from a fourth. KeyChord's layout is arranged so that its own chords
-            avoid those groups on the MacBook Pro 2021, and the Typing Guide never suggests a chord the keyboard
-            can't register. If a chord you made up yourself doesn't come through, KeyChord lists it when it loads
-            your dictionaries.</p>
+            <p>A keyboard can only report so many keys at once. KeyChord's default rollover limit is six, and some
+            groups of keys may fail even below that limit. The Typing Guide avoids combinations predicted to fail
+            by the available keyboard wiring model and plans alternative chords where possible. The bundled ISO
+            model is based on measurements of a MacBook Pro 2021; the ANSI model is derived from it and has not
+            been measured. Other keyboards may have different limits. Without a wiring model, planning uses the
+            rollover limit alone. When you load your dictionaries, KeyChord reports custom chords that exceed
+            the rollover limit or are predicted to fail by the available model.</p>
             </main></body></html>
             """
             return h

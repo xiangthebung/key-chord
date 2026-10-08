@@ -1,0 +1,246 @@
+{
+  "schemaVersion": 1,
+  "firstChord": {
+    "stageOrder": [
+      "see",
+      "try",
+      "undo",
+      "recall"
+    ],
+    "guidedWords": [
+      "sat",
+      "hat",
+      "tan"
+    ],
+    "recallWords": [
+      "tan",
+      "sat",
+      "hat"
+    ],
+    "recoverySequence": [
+      "mistake",
+      "undo",
+      "repair"
+    ],
+    "placeholder": "Start typing to begin.",
+    "stages": {
+      "see": {
+        "label": "See",
+        "title": "Your first chord",
+        "instruction": "Hold the highlighted keys together, then release all of them.",
+        "primaryAction": "Show chord",
+        "primaryActionID": "demonstrate",
+        "hintsVisible": true,
+        "physicalReleaseRequired": false,
+        "nextStageID": "try",
+        "placeholder": ""
+      },
+      "try": {
+        "label": "Try",
+        "title": "Type “{word}”",
+        "instruction": "Hold the highlighted keys together, then release all of them.",
+        "primaryAction": "Start typing",
+        "primaryActionID": "capture",
+        "hintsVisible": true,
+        "physicalReleaseRequired": true,
+        "nextStageID": "undo"
+      },
+      "undo": {
+        "label": "Undo",
+        "primaryAction": "Start typing",
+        "primaryActionID": "capture",
+        "hintsVisible": true,
+        "physicalReleaseRequired": true,
+        "nextStageID": "recall"
+      },
+      "recall": {
+        "label": "Recall",
+        "title": "Type “{word}”",
+        "instruction": "Type the word without the guide.",
+        "primaryAction": "Start typing",
+        "primaryActionID": "capture",
+        "hintsVisible": false,
+        "physicalReleaseRequired": true,
+        "nextStageID": "finished"
+      },
+      "finished": {
+        "label": "Finished",
+        "title": "Introduction complete",
+        "instruction": "Continue with the lessons.",
+        "primaryAction": "Open lessons",
+        "primaryActionID": "lessons",
+        "hintsVisible": false,
+        "physicalReleaseRequired": false,
+        "nextStageID": null,
+        "placeholder": ""
+      }
+    },
+    "recovery": {
+      "mistake": {
+        "title": "Type “{word}”",
+        "instruction": "Type the wrong word. You’ll undo it next."
+      },
+      "undo": {
+        "title": "Undo “hat”",
+        "instruction": "Use the Undo chord to remove the whole word."
+      },
+      "repair": {
+        "title": "Type “{word}”",
+        "instruction": "Hold the highlighted keys together, then release all of them."
+      }
+    },
+    "states": [
+      {
+        "id": "see",
+        "stage": "see",
+        "wordIndex": 0,
+        "recovery": "mistake",
+        "target": "sat",
+        "completion": "start",
+        "next": "try-0"
+      },
+      {
+        "id": "try-0",
+        "stage": "try",
+        "wordIndex": 0,
+        "recovery": "mistake",
+        "target": "sat",
+        "completion": "physicalWord",
+        "next": "try-1"
+      },
+      {
+        "id": "try-1",
+        "stage": "try",
+        "wordIndex": 1,
+        "recovery": "mistake",
+        "target": "hat",
+        "completion": "physicalWord",
+        "next": "try-2"
+      },
+      {
+        "id": "try-2",
+        "stage": "try",
+        "wordIndex": 2,
+        "recovery": "mistake",
+        "target": "tan",
+        "completion": "physicalWord",
+        "next": "undo-mistake"
+      },
+      {
+        "id": "undo-mistake",
+        "stage": "undo",
+        "wordIndex": 0,
+        "recovery": "mistake",
+        "target": "hat",
+        "completion": "physicalWord",
+        "next": "undo-command"
+      },
+      {
+        "id": "undo-command",
+        "stage": "undo",
+        "wordIndex": 0,
+        "recovery": "undo",
+        "target": null,
+        "completion": "physicalUndo",
+        "next": "undo-repair"
+      },
+      {
+        "id": "undo-repair",
+        "stage": "undo",
+        "wordIndex": 0,
+        "recovery": "repair",
+        "target": "sat",
+        "completion": "physicalWord",
+        "next": "recall-0"
+      },
+      {
+        "id": "recall-0",
+        "stage": "recall",
+        "wordIndex": 0,
+        "recovery": "mistake",
+        "target": "tan",
+        "completion": "physicalWord",
+        "next": "recall-1"
+      },
+      {
+        "id": "recall-1",
+        "stage": "recall",
+        "wordIndex": 1,
+        "recovery": "mistake",
+        "target": "sat",
+        "completion": "physicalWord",
+        "next": "recall-2"
+      },
+      {
+        "id": "recall-2",
+        "stage": "recall",
+        "wordIndex": 2,
+        "recovery": "mistake",
+        "target": "hat",
+        "completion": "physicalWord",
+        "next": "finished"
+      },
+      {
+        "id": "finished",
+        "stage": "finished",
+        "wordIndex": 0,
+        "recovery": "mistake",
+        "target": null,
+        "completion": "none",
+        "next": null
+      }
+    ],
+    "demonstration": [
+      {
+        "id": "ready",
+        "instruction": "Watch a chord become “sat”.",
+        "primaryAction": "Show chord",
+        "held": "none",
+        "output": null
+      },
+      {
+        "id": "held",
+        "instruction": "All keys are down. The word waits for release.",
+        "primaryAction": "Release some keys",
+        "held": "all",
+        "output": null
+      },
+      {
+        "id": "partial",
+        "instruction": "One key is still held. Release it to type “sat”.",
+        "primaryAction": "Release all keys",
+        "held": "last",
+        "output": null
+      },
+      {
+        "id": "released",
+        "instruction": "Every key is up. The chord types “sat”.",
+        "primaryAction": "Try chord",
+        "held": "none",
+        "output": "sat"
+      }
+    ]
+  },
+  "lessons": {
+    "see": {
+      "title": "Guide",
+      "instruction": "Hold the highlighted keys together, then release all of them.",
+      "primaryAction": "Start typing"
+    },
+    "try": {
+      "title": "Guided practice",
+      "instruction": "Type the passage with the guide.",
+      "primaryAction": "Start typing"
+    },
+    "recall": {
+      "title": "Type from memory",
+      "instruction": "Type the passage from memory. Show a hint if you need one.",
+      "primaryAction": "Start typing"
+    },
+    "use": {
+      "title": "Use it in your writing",
+      "instruction": "Write a note or code fragment with the chords you practiced.",
+      "primaryAction": "Open editor"
+    }
+  }
+}

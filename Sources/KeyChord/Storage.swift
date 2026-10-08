@@ -121,7 +121,18 @@ final class DataStore {
 }
 
 final class Settings {
-    private let d = UserDefaults.standard
+    private let d: UserDefaults
+    init(defaults: UserDefaults = .standard) { d = defaults }
+
+    static let keyLabelsDidChange = Notification.Name("KeyChordKeyLabelsDidChange")
+
+    var keyLabelStyle: KeyLabelStyle {
+        get { d.string(forKey: "keyLabelStyle").flatMap(KeyLabelStyle.init(rawValue:)) ?? .both }
+        set {
+            d.set(newValue.rawValue, forKey: "keyLabelStyle")
+            NotificationCenter.default.post(name: Self.keyLabelsDidChange, object: nil)
+        }
+    }
 
     var lastSubMode: SubMode {
         get { SubMode(rawValue: d.string(forKey: "lastSubMode") ?? "") ?? .english }
@@ -161,36 +172,96 @@ final class Settings {
         get { d.bool(forKey: "practiceReferenceVisible") }
         set { d.set(newValue, forKey: "practiceReferenceVisible") }
     }
+
+    /// A bounded size keeps the passage and input readable without breaking the narrow workspace.
+    static let practiceTextSizeRange = 16...30
+    var practiceTextSize: Int {
+        get {
+            guard d.object(forKey: "practiceTextSize") != nil else { return 20 }
+            return min(Self.practiceTextSizeRange.upperBound, max(Self.practiceTextSizeRange.lowerBound,
+                                                                d.integer(forKey: "practiceTextSize")))
+        }
+        set { d.set(min(Self.practiceTextSizeRange.upperBound, max(Self.practiceTextSizeRange.lowerBound, newValue)),
+                    forKey: "practiceTextSize") }
+    }
 }
 
-/// One aggregate per chord; contains no passages, outputs, event sequences, or timestamps.
+/// One aggregate per chord, including review dates; contains no passages or event sequences.
 final class PracticePerformanceStore {
     private let defaults: UserDefaults
     private(set) var history: PracticeHistory
     private static let key = "chordPracticePerformance.v1"
+    private let day: () -> Int
 
-    init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard, day: @escaping () -> Int = { PracticePerformanceStore.today }) {
         self.defaults = defaults
+        self.day = day
         history = defaults.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(PracticeHistory.self, from: $0) }
             ?? PracticeHistory()
     }
 
     func record(_ chord: PracticeChord, correct: Bool, seconds: Double, hinted: Bool) {
-        history.record(chord, correct: correct, seconds: seconds, hinted: hinted)
+        history.record(chord, correct: correct, seconds: seconds, hinted: hinted, day: day())
         if let data = try? JSONEncoder().encode(history) { defaults.set(data, forKey: Self.key) }
     }
+
+    static var today: Int { Int(Date().timeIntervalSince1970 / 86_400) }
 }
 
 /// Which course steps are done, and where the learner left off. Only step names are stored, never typed text.
 final class CourseProgress {
-    private let d = UserDefaults.standard
+    private let d: UserDefaults
 
-    var completed: Set<String> { Set(d.stringArray(forKey: "courseCompleted") ?? []) }
+    init(defaults: UserDefaults = .standard) { d = defaults }
 
-    func markDone(_ id: String) {
+    var completed: Set<String> {
+        let saved = Set(d.stringArray(forKey: "courseCompleted") ?? [])
+        let migrated = Course.migratedCompletedIDs(saved, fromVersion: d.integer(forKey: "courseCurriculumVersion"))
+        if migrated != saved { d.set(migrated.sorted(), forKey: "courseCompleted") }
+        d.set(Course.curriculumVersion, forKey: "courseCurriculumVersion")
+        return migrated
+    }
+
+    /// A complete unassisted session is a pass, not proof of delayed retention.
+    var unassisted: Set<String> { Set(d.stringArray(forKey: "courseUnassisted.v1") ?? []) }
+
+    private struct DelayedRecord: Codable {
+        let mapping: UInt64
+        var check: CourseDelayedCheck
+    }
+    private var delayedRecords: [String: DelayedRecord] {
+        get { d.data(forKey: "courseDelayedChecks.v1").flatMap {
+            try? JSONDecoder().decode([String: DelayedRecord].self, from: $0)
+        } ?? [:] }
+        set {
+            if let encoded = try? JSONEncoder().encode(newValue) { d.set(encoded, forKey: "courseDelayedChecks.v1") }
+        }
+    }
+
+    /// Dates are whole epoch days. An obsolete mapping never supplies retention evidence.
+    func delayedCheck(_ id: String, mapping: UInt64) -> CourseDelayedCheck {
+        guard let record = delayedRecords[id], record.mapping == mapping else { return CourseDelayedCheck() }
+        return record.check
+    }
+
+    func recordDelayedCheck(_ id: String, mapping: UInt64, cleanUnaidedPass: Bool,
+                            day: Int = PracticePerformanceStore.today) {
+        var records = delayedRecords
+        var check = delayedCheck(id, mapping: mapping)
+        check.record(cleanUnaidedPass: cleanUnaidedPass, day: day)
+        records[id] = DelayedRecord(mapping: mapping, check: check)
+        delayedRecords = records
+    }
+
+    func markDone(_ id: String, unassisted: Bool = false) {
         var done = completed
-        guard done.insert(id).inserted else { return }
+        done.insert(id)
         d.set(done.sorted(), forKey: "courseCompleted")
+        if unassisted {
+            var passed = self.unassisted
+            passed.insert(id)
+            d.set(passed.sorted(), forKey: "courseUnassisted.v1")
+        }
     }
 
     /// The step opened last.
@@ -204,10 +275,16 @@ final class CourseProgress {
         let done = completed
         let last = lastStep.flatMap(Course.index(of:)) ?? 0
         if !done.contains(Course.steps[last].id) { return last }
-        let order = Array(last..<Course.steps.count) + Array(0..<last)
+        let order = (Array(last..<Course.steps.count) + Array(0..<last)).filter { Course.steps[$0].mode == Course.steps[last].mode }
         return order.first { !done.contains(Course.steps[$0].id) } ?? last
     }
 
-    /// Steps done, for the menu.
+    /// Track counts keep the optional C++ course outside English progress.
+    func practicedCount(mode: SubMode) -> Int {
+        let done = completed
+        return Course.steps.filter { $0.mode == mode && done.contains($0.id) }.count
+    }
+
+    /// Total practiced lessons, retained for callers that need both tracks.
     var doneCount: Int { Course.steps.filter { completed.contains($0.id) }.count }
 }

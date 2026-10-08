@@ -77,10 +77,14 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
             panel.setFrameOrigin(NSPoint(x: v.midX - panel.frame.width / 2, y: v.minY + 24))
         }
         panel.setFrameAutosaveName(Self.frameName)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyLabelsChanged),
+                                               name: Settings.keyLabelsDidChange, object: nil)
         rebuild()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    @objc private func keyLabelsChanged() { rebuild() }
 
     // MARK: UI
 
@@ -263,9 +267,11 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
             readingLabel.attributedStringValue = NSAttributedString(string: status, attributes: [
                 .font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.secondaryLabelColor])
         } else if let current {
-            readingLabel.attributedStringValue = ChordText.reading(current, layout: data.layout, size: size)
+            readingLabel.attributedStringValue = ChordText.reading(current, layout: data.layout, size: size,
+                                                                 meanings: KeyMeanings(data: data, mode: subMode))
         } else if let last {
-            readingLabel.attributedStringValue = ChordText.reading(last, layout: data.layout, size: size, dim: true)
+            readingLabel.attributedStringValue = ChordText.reading(last, layout: data.layout, size: size, dim: true,
+                                                                 meanings: KeyMeanings(data: data, mode: subMode))
         } else {
             readingLabel.attributedStringValue = NSAttributedString(
                 string: "Hold the keys of a chord to see what it types before you let go.",
@@ -289,6 +295,7 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
 
     private func soundsText() -> NSAttributedString {
         let layout = data.layout
+        let meanings = KeyMeanings(data: data, mode: subMode)
         let size: CGFloat = 13
         let out = NSMutableAttributedString()
         out.append(NSAttributedString(
@@ -304,7 +311,8 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
             guard !list.isEmpty else { continue }
             let color = KeyboardDiagramView.color(for: role)
             out.append(ChordText.heading(title, color: color, size: size))
-            out.append(ChordText.items(list.map { ($0.text, ChordText.keys($0.keys, layout: layout), color) }, size: size))
+            out.append(ChordText.items(list.map { ($0.text, ChordText.keys($0.keys, layout: layout,
+                meanings: meanings), color) }, size: size))
             out.append(NSAttributedString(string: "\n\n"))
         }
         // Pairs need no table: two sounds that each have a key take both keys.
@@ -318,7 +326,8 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
             out.append(ChordText.heading("Two sounds that each have a key: press both keys", size: size))
             out.append(ChordText.items(examples.map { s in
                 let role: KeyMeanings.Role = s.bank == .onset ? .onset : s.bank == .vowel ? .vowel : .coda
-                return (s.text, ChordText.keys(s.keys, layout: layout), KeyboardDiagramView.color(for: role))
+                return (s.text, ChordText.keys(s.keys, layout: layout, meanings: meanings),
+                        KeyboardDiagramView.color(for: role))
             }, size: size))
         }
         return out
@@ -326,6 +335,7 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
 
     private func wordsText() -> NSAttributedString {
         let layout = data.layout
+        let meanings = KeyMeanings(data: data, mode: subMode)
         let size: CGFloat = 13
         var effective = data.shared.entries
         for (k, e) in data.dictionary(for: subMode).entries { effective[k] = e }
@@ -338,7 +348,8 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
         let special = KeyboardDiagramView.color(for: .special)
         var groups: [(String, [(label: String, keys: String, color: NSColor)])] = []
         func row(_ k: KeySet, _ label: String, _ color: NSColor = special, note: String? = nil) -> (label: String, keys: String, color: NSColor) {
-            (label, ChordText.keys(k, layout: layout) + (note.map { " (\($0))" } ?? ""), color)
+            (label, ChordText.keys(k, layout: layout, meanings: meanings)
+                + (note.map { " (\($0))" } ?? ""), color)
         }
         if subMode == .english {
             groups.append(("Endings", texts { $0.kind == .suffix }.map { row($0.0, "-" + $0.1.text) }))
@@ -367,4 +378,3 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
         return out
     }
 }
-

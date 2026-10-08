@@ -21,6 +21,7 @@ let package = Package(
                 .linkedFramework("Carbon"),
                 .linkedFramework("ApplicationServices"),
                 .linkedFramework("WebKit"),
+                .linkedFramework("AVFoundation"),
             ]
         ),
         .testTarget(name: "KeyChordCoreTests", dependencies: ["KeyChordCore"]),

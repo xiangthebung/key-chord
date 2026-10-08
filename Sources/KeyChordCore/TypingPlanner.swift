@@ -117,6 +117,25 @@ public struct TypingGuide: Sendable {
         while i > 0 && steps[i - 1].group == steps[i].group { i -= 1 }
         return i
     }
+
+    /// Whether the current text is on this plan. `tailStep` is a step whose complete intermediate
+    /// text has been matched, including its temporary tail (for example "make" before "making").
+    /// `start` is the character offset where a continuation begins.
+    public func isPlanned(at offset: Int, tailStep: Int? = nil, start: Int = 0) -> Bool {
+        // A suffix base can differ from the passage before its chord completes. Keep the context of
+        // that base; replanning from just the matching prefix would lose the word the suffix must edit.
+        if let tailStep, steps.indices.contains(tailStep), !steps[tailStep].tail.isEmpty { return true }
+        if offset == 0 || offset == start { return true }
+        guard let first = stepIndex(at: offset) else { return true }
+        var k = max(0, first - 1)
+        while k < steps.count && (k < first || steps[k].group == steps[first].group) {
+            let s = steps[k]
+            if s.tail.isEmpty && s.textEnd == offset { return true }
+            if case .typeNormally = s.action, s.textEnd > offset, s.textEnd - s.output.count <= offset { return true }
+            k += 1
+        }
+        return false
+    }
 }
 
 /// A plan for the rest of a line from wherever the typist is, however they got there.
