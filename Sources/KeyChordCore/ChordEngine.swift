@@ -30,12 +30,17 @@ struct OutputContext: Equatable, Sendable {
         var kind: OutputKind
         var attachRight: Bool
         var glue: Bool
+        var endsWithWhitespace = false
+        /// A closing delimiter can be followed immediately by a C++ call, subscript or template.
+        var closesExpression = false
     }
     struct Snippet: Equatable, Sendable {
         /// Characters of the snippet text that are after the cursor.
         var tail: Int
         var attachRight: Bool
         var kind: OutputKind
+        var endsWithWhitespace: Bool
+        var closesExpression: Bool
     }
     struct Casing: Equatable, Sendable {
         var mode: CasingMode
@@ -46,6 +51,8 @@ struct OutputContext: Equatable, Sendable {
     var atStart = true
     var last: Last?
     var pendingCap = false
+    /// Lets the opening double-quote chord also close its matching quote.
+    var doubleQuoteOpen = false
     var casing: Casing?
     /// Open snippets, innermost last.
     var snippets: [Snippet] = []
@@ -262,7 +269,9 @@ public final class ChordEngine {
         case .snippetExit:
             let before = context
             guard let f = context.snippets.popLast() else { return untranslatable() }
-            context.last = OutputContext.Last(kind: f.kind, attachRight: f.attachRight, glue: false)
+            context.last = OutputContext.Last(kind: f.kind, attachRight: f.attachRight, glue: false,
+                                              endsWithWhitespace: f.endsWithWhitespace,
+                                              closesExpression: f.closesExpression)
             context.afterSnippet = false
             context.casing = nil
             context.prevWord = nil
@@ -277,8 +286,9 @@ public final class ChordEngine {
     private func needsSpace(_ e: TextEntry, join: Bool) -> Bool {
         if context.atStart || context.afterSnippet { return false }
         guard let last = context.last else { return false }
+        if last.endsWithWhitespace || e.text.first?.isWhitespace == true { return false }
         if last.attachRight || e.attachLeft || join { return false }
-        if e.wordAttach && (last.kind == .word || last.kind == .suffix) { return false }
+        if e.wordAttach && (last.kind == .word || last.kind == .suffix || last.closesExpression) { return false }
         if e.glue && last.glue { return false }
         return true
     }
@@ -291,6 +301,20 @@ public final class ChordEngine {
         let before = context
         var rec = UndoRecord(before: before)
         var actions: [OutputAction] = []
+        var e = e
+
+        // Keep explicit closing quotes and exact attachment flags. An opening quote chord reused
+        // inside its pair behaves as a closing quote, including the space before the next word.
+        if e.kind == .symbol, !e.isSnippet, e.text == "\"", !(e.attachLeft && e.attachRight) {
+            if e.attachLeft || context.doubleQuoteOpen {
+                e.attachLeft = true
+                e.attachRight = false
+                context.doubleQuoteOpen = false
+            } else {
+                e.attachRight = true
+                context.doubleQuoteOpen = true
+            }
+        }
 
         if e.kind == .suffix {
             // Req 10.1, 10.2, 10.9: attach to the previous word without a space.
@@ -308,7 +332,8 @@ public final class ChordEngine {
             if !rec.deleted.isEmpty { actions.append(.deleteBackward(rec.deleted.count)) }
             if !inserted.isEmpty { actions.append(.insert(inserted)) }
             rec.insertedBefore = inserted.count
-            context.last = OutputContext.Last(kind: .suffix, attachRight: e.attachRight, glue: false)
+            context.last = OutputContext.Last(kind: .suffix, attachRight: e.attachRight, glue: false,
+                                              endsWithWhitespace: inserted.last?.isWhitespace == true)
             context.atStart = false
             context.afterSnippet = false
             record(rec)
@@ -356,17 +381,23 @@ public final class ChordEngine {
             text = text.uppercased()
         }
         if e.kind == .word {
-            context.prevWord = continuesWord ? (context.prevWord ?? "") + text : text
+            context.prevWord = text.last?.isWhitespace == true ? nil
+                : continuesWord ? (context.prevWord ?? "") + text : text
         } else {
             context.prevWord = nil
         }
 
         let full = separator + text
+        // A comparison operator such as ">" has no attach-left flag; it must keep its word gap.
+        let closesExpression = !e.attachRight && (e.attachLeft || e.isSnippet)
+            && text.last.map { ")]}>\"'".contains($0) } == true
         actions.append(.insert(full))
         if let k = cursorFromEnd {
             guard k <= text.count else { throw EngineError.invariant("cursor marker outside text") }
             if k > 0 { actions.append(.moveLeft(k)) }
-            context.snippets.append(OutputContext.Snippet(tail: k, attachRight: e.attachRight, kind: e.kind))
+            context.snippets.append(OutputContext.Snippet(tail: k, attachRight: e.attachRight, kind: e.kind,
+                                                         endsWithWhitespace: text.last?.isWhitespace == true,
+                                                         closesExpression: closesExpression))
             context.afterSnippet = true
             rec.insertedBefore = full.count - k
             rec.insertedAfter = k
@@ -374,7 +405,10 @@ public final class ChordEngine {
             context.afterSnippet = false
             rec.insertedBefore = full.count
         }
-        context.last = OutputContext.Last(kind: e.kind, attachRight: e.attachRight, glue: e.glue)
+        let beforeCursor = cursorFromEnd.map { String(text.dropLast($0)) } ?? text
+        context.last = OutputContext.Last(kind: e.kind, attachRight: e.attachRight, glue: e.glue,
+                                          endsWithWhitespace: beforeCursor.last?.isWhitespace == true,
+                                          closesExpression: !e.isSnippet && closesExpression)
         context.atStart = false
         if e.capitalizeNext && subMode == .english { context.pendingCap = true }   // Req 9.2, 9.4
         record(rec)

@@ -287,7 +287,7 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
         let m = KeyMeanings(data: data, mode: subMode)
         keyboard.layout = data.layout
         keyboard.meanings = m
-        legendLabel.attributedStringValue = TypingGuideWindowController.legend(m, layout: data.layout)
+        legendLabel.attributedStringValue = KeyboardDiagramView.legend()
         textView(of: soundsScroll)?.textStorage?.setAttributedString(soundsText())
         textView(of: wordsScroll)?.textStorage?.setAttributedString(wordsText())
         refresh()
@@ -354,7 +354,7 @@ final class ReferenceOverlayController: NSWindowController, NSWindowDelegate {
         if subMode == .english {
             groups.append(("Endings", texts { $0.kind == .suffix }.map { row($0.0, "-" + $0.1.text) }))
             groups.append(("Punctuation", texts { $0.kind == .symbol && !$0.isSnippet }.map {
-                row($0.0, TypingGuideWindowController.visible($0.1.text),
+                row($0.0, ChordDisplay.visible($0.1.text),
                     note: [".", "?", "!"].contains($0.1.text) && !$0.1.capitalizeNext ? "no capital after" : nil)
             }))
             groups.append(("Words", texts { $0.kind == .word && !$0.isSnippet }.map { row($0.0, $0.1.text, .labelColor) }))

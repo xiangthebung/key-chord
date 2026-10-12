@@ -1,9 +1,45 @@
 import AppKit
 import KeyChordCore
 
+enum PracticeSection: String, CaseIterable {
+    case lessons, words, voice
+
+    var title: String {
+        switch self {
+        case .lessons: return "Lessons"
+        case .words: return "Words"
+        case .voice: return "Voice Practice"
+        }
+    }
+}
+
+enum PracticeShortcut {
+    case hints, replay, new, retry
+}
+
+/// Shortcuts belong to this window, so they also work while the typing field owns focus.
+final class PracticeWindow: NSWindow {
+    var onShortcut: ((PracticeShortcut) -> Void)?
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        let shortcut: PracticeShortcut?
+        if flags == [.command, .shift], key == "h" { shortcut = .hints }
+        else if flags == [.command, .shift], key == "r" { shortcut = .replay }
+        else if flags == [.command], key == "r" { shortcut = .retry }
+        else if flags == [.command], key == "\r" { shortcut = .new }
+        else { shortcut = nil }
+        if let shortcut, let onShortcut {
+            if !event.isARepeat { onShortcut(shortcut) }
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
+}
+
 /// Responder-chain input uses the existing local chord engine and focus lease.
 /// Bulk native insertions and drag/drop cannot turn a pasted passage into a typing result.
-final class WordPracticeInputView: LocalChordInputView {
+final class PracticeTypingInputView: LocalChordInputView {
     var onBlockedPaste: (() -> Void)?
     var onCursorChange: (() -> Void)?
     override func paste(_ sender: Any?) { onBlockedPaste?() }
@@ -17,36 +53,43 @@ final class WordPracticeInputView: LocalChordInputView {
     }
 }
 
-final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, NSTextViewDelegate {
+final class PracticeWindowController: NSWindowController, NSWindowDelegate, NSTextViewDelegate {
     var onLocalFocus: ((Bool) -> Void)?
     private let defaults: UserDefaults
-    private let data: EngineData
-    private let rolloverLimit: Int
-    private let usable: (KeySet) -> Bool
+    private var data: EngineData
+    private var rolloverLimit: Int
+    private var usable: (KeySet) -> Bool
     private let clock: () -> Double
     private let seed: () -> UInt64
     private let wordSource: [String]?
-    private let input: WordPracticeInputView
+    private let input: PracticeTypingInputView
+    private let lessonPane: GuidedPracticePane
+    private let voicePane: GuidedPracticePane
+    private let heading = PracticeUI.label("Words", size: 28, weight: .bold)
+    private var wordContent: NSStackView!
+    private(set) var section: PracticeSection = .words
     private(set) var session: WordPracticeSession!
     private var timer: Timer?
-    private let vocabularyPopup = NSPopUpButton()
+    private let vocabularyPopup = PracticePopUpButton()
     private let goalControl = NSSegmentedControl(labels: ["Time", "Words"], trackingMode: .selectOne, target: nil, action: nil)
-    private let lengthPopup = NSPopUpButton()
-    private let inputMode = NSSegmentedControl(labels: ["Chords", "Keyboard"], trackingMode: .selectOne, target: nil, action: nil)
-    private let guideButton = NSButton(checkboxWithTitle: "Show chord guide", target: nil, action: nil)
+    private let lengthPopup = PracticePopUpButton()
+    private var chordEnabled: Bool
+    private let guideButton = NSButton(title: "Hint ⇧⌘H", target: nil, action: nil)
     private let status = NSTextField(wrappingLabelWithString: "")
-    private let passage = NSTextView()
-    private let passageScroll = NSScrollView()
-    private let resultTitle = PracticeUI.label("Test complete", size: 20, weight: .semibold)
+    private let passage = PracticePassageView()
+    private let passageScroll = PracticePassageScrollView()
+    private let resultTitle = PracticeUI.label("Practice complete", size: 20, weight: .semibold)
     private let resultDetail = NSTextField(wrappingLabelWithString: "")
     private let characterDetail = NSTextField(wrappingLabelWithString: "")
-    private let chart = WordPracticeChartView()
+    private let chart = PracticeChartView()
     private var resultCard: NSBox!
     private let hint = NSTextField(wrappingLabelWithString: "")
+    private let hintCaption = PracticeUI.label("KEYBOARD", size: 10, weight: .semibold)
     private let keyboard = KeyboardDiagramView()
     private var guideCard: NSStackView!
+    private var hintedWord: Int?
     private var metricLabels: [NSTextField] = []
-    private let planningQueue = DispatchQueue(label: "KeyChord.word-sprint-planning", qos: .userInitiated)
+    private let planningQueue = DispatchQueue(label: "KeyChord.practice-planning", qos: .userInitiated)
     private var planRequest = 0
     private var plannedFor = ""
     private var usedChords = false
@@ -63,7 +106,8 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
     init(data: EngineData, rolloverLimit: Int = 6, usable: @escaping (KeySet) -> Bool = { _ in true },
          defaults: UserDefaults = .standard, clock: @escaping () -> Double = { ProcessInfo.processInfo.systemUptime },
          seed: @escaping () -> UInt64 = { UInt64.random(in: .min ... .max) },
-         focus: (() -> Bool)? = nil, globalSuspended: @escaping () -> Bool = { true }, wordSource: [String]? = nil) {
+         focus: (() -> Bool)? = nil, globalSuspended: @escaping () -> Bool = { true }, wordSource: [String]? = nil,
+         makeSpeaker: () -> PracticeSpeaking = { PracticeSpeaker() }) {
         self.data = data
         self.rolloverLimit = rolloverLimit
         self.usable = usable
@@ -71,19 +115,27 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         self.clock = clock
         self.seed = seed
         self.wordSource = wordSource
-        input = WordPracticeInputView(data: data, focus: focus, globalSuspended: globalSuspended)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 810),
+        chordEnabled = !defaults.bool(forKey: "wordSprintKeyboard")
+        input = PracticeTypingInputView(data: data, focus: focus, globalSuspended: globalSuspended)
+        lessonPane = GuidedPracticePane(kind: .lessons, data: data, rolloverLimit: rolloverLimit, usable: usable,
+            defaults: defaults, focus: focus, globalSuspended: globalSuspended, speaker: makeSpeaker())
+        voicePane = GuidedPracticePane(kind: .voice, data: data, rolloverLimit: rolloverLimit, usable: usable,
+            defaults: defaults, focus: focus, globalSuspended: globalSuspended, speaker: makeSpeaker())
+        let window = PracticeWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 810),
             styleMask: [.titled, .closable, .resizable, .miniaturizable], backing: .buffered, defer: false)
-        window.title = "KeyChord · Word Sprint"
+        window.title = "KeyChord · Practice"
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 620, height: 620)
-        window.backgroundColor = .windowBackgroundColor
-        window.setFrameAutosaveName("KeyChordWordSprint")
+        window.minSize = NSSize(width: 620, height: 760)
+        window.backgroundColor = PracticeUI.pageColor
+        window.setFrameAutosaveName("KeyChordPractice")
         window.collectionBehavior.insert(.fullScreenPrimary)
         super.init(window: window)
         window.delegate = self
+        window.onShortcut = { [weak self] shortcut in self?.perform(shortcut) }
         buildUI()
+        lessonPane.onLocalFocus = { [weak self] focused in self?.onLocalFocus?(focused) }
+        voicePane.onLocalFocus = { [weak self] focused in self?.onLocalFocus?(focused) }
         input.delegate = self
         input.onFocus = { [weak self] focused in
             self?.onLocalFocus?(focused)
@@ -96,7 +148,7 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
             self.syncContext()
             self.render()
         }
-        input.onCursorChange = { [weak self] in self?.syncContext() }
+        input.onCursorChange = { [weak self] in self?.syncContext(); self?.plannedFor = ""; self?.render() }
         input.onWillApplyOutput = { [weak self] output in self?.verifyChordPreview(output) }
         input.onOutput = { [weak self] output in
             guard let self else { return }
@@ -104,8 +156,9 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
             self.updateInputMode()
             self.render()
         }
-        input.onBlockedPaste = { [weak self] in self?.status.stringValue = "Paste is disabled during a typing test." }
+        input.onBlockedPaste = { [weak self] in self?.status.stringValue = "Type the words to practice; paste is disabled." }
         newTest()
+        selectSection(defaults.string(forKey: "practiceSection").flatMap(PracticeSection.init(rawValue:)) ?? .words)
         window.center()
     }
     required init?(coder: NSCoder) { fatalError() }
@@ -113,77 +166,63 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
 
     private func buildUI() {
         guard let content = window?.contentView else { return }
-        let title = PracticeUI.label("Word Sprint", size: 28, weight: .bold)
-        title.textColor = .labelColor
-        let subtitle = NSTextField(wrappingLabelWithString: "Choose a vocabulary and type. The test starts on your first character.")
-        subtitle.textColor = .secondaryLabelColor
+        heading.textColor = .labelColor
         vocabularyPopup.addItems(withTitles: WordPracticeVocabulary.allCases.map(\.title))
-        let savedVocabulary = defaults.string(forKey: "wordSprintVocabulary").flatMap(WordPracticeVocabulary.init(rawValue:)) ?? .english5k
+        let savedVocabulary = defaults.string(forKey: "wordSprintVocabulary").flatMap(WordPracticeVocabulary.init(rawValue:)) ?? .english
         vocabularyPopup.selectItem(at: WordPracticeVocabulary.allCases.firstIndex(of: savedVocabulary)!)
         vocabularyPopup.target = self
         vocabularyPopup.action = #selector(configurationChanged)
         vocabularyPopup.setAccessibilityLabel("Word vocabulary")
         vocabularyPopup.toolTip = "English: 200 words · English 5k: 5,000 · English 25k: 24,141 curated words"
-        goalControl.selectedSegment = defaults.string(forKey: "wordSprintGoal") == "words" ? 1 : 0
+        goalControl.selectedSegment = defaults.string(forKey: "wordSprintGoal") == "time" ? 0 : 1
         goalControl.target = self
         goalControl.action = #selector(goalChanged)
         goalControl.setAccessibilityLabel("Test mode")
+        PracticeUI.styleSegments(goalControl)
         lengthPopup.target = self
         lengthPopup.action = #selector(configurationChanged)
         lengthPopup.setAccessibilityLabel("Test length")
         updateLengths()
-        inputMode.selectedSegment = defaults.bool(forKey: "wordSprintKeyboard") ? 1 : 0
-        inputMode.target = self
-        inputMode.action = #selector(inputMethodChanged)
-        inputMode.setAccessibilityLabel("Typing method")
-        guideButton.state = defaults.bool(forKey: "wordSprintGuide") ? .on : .off
         guideButton.target = self
         guideButton.action = #selector(guideChanged)
-        let options = PracticeUI.row([vocabularyPopup, PracticeUI.spacer(), goalControl, lengthPopup])
-        let methods = PracticeUI.row([inputMode, guideButton, PracticeUI.spacer()])
+        guideButton.keyEquivalent = "h"
+        guideButton.keyEquivalentModifierMask = [.command, .shift]
+        guideButton.toolTip = "Reveal the chords for this word · ⇧⌘H"
+        PracticeUI.styleButton(guideButton)
+        guideButton.setAccessibilityLabel("Hint for this word")
+        let vocabularyOptions = PracticeUI.column([PracticeUI.label("VOCABULARY", size: 10, weight: .semibold), vocabularyPopup], spacing: 8)
+        let sessionOptions = PracticeUI.column([PracticeUI.label("SESSION", size: 10, weight: .semibold),
+            PracticeUI.row([goalControl, lengthPopup], spacing: 12)], spacing: 8)
+        let options = PracticeUI.row([vocabularyOptions, PracticeUI.spacer(), sessionOptions], spacing: 20)
         let metricTips = [
-            "Correctly completed words and the correct current prefix, divided by five characters per word and elapsed minutes.",
-            "All characters currently entered, including errors and spaces, divided by five and elapsed minutes. Deleted characters are excluded.",
-            "Correct inserted characters divided by all inserted characters. Verified intermediate chord bases count as correct. Correcting a mistake does not erase the attempt.",
-            "Steadiness of characters entered per second: 100 × (1 − standard deviation / mean), clamped to 0–100. Available after two seconds.",
-            "Time remaining, or words completed. The timer keeps running while this window is out of focus."
+            "Correct characters divided by five and elapsed minutes.",
+            "Correct inserted characters divided by all inserted characters, including corrected mistakes.",
+            "Time remaining, or words left to type."
         ]
-        let stats: [NSView] = ["WPM", "Raw WPM", "Accuracy", "Consistency", "Remaining"].enumerated().map { index, name in
-            let value = PracticeUI.label("—", size: 28, weight: .medium)
-            value.font = .monospacedDigitSystemFont(ofSize: 28, weight: .medium)
+        let stats: [NSView] = ["WPM", "Accuracy", "Remaining"].enumerated().map { index, name in
+            let value = PracticeUI.label("—", size: 26, weight: .medium)
+            value.font = .monospacedDigitSystemFont(ofSize: 26, weight: .medium)
             value.textColor = index == 0 ? PracticeUI.accentColor : .labelColor
             value.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
             value.toolTip = metricTips[index]
             metricLabels.append(value)
             let label = PracticeUI.label(name, size: 11)
-            let column = PracticeUI.column([label, value], spacing: 4)
-            column.toolTip = metricTips[index]
-            return column
+            return PracticeUI.column([label, value], spacing: 4)
         }
         let metricRow = PracticeUI.row(stats, spacing: 12)
         metricRow.distribution = .fillEqually
-        passage.isEditable = false
-        passage.isSelectable = false
-        passage.isRichText = false
-        passage.drawsBackground = false
-        passage.isVerticallyResizable = true
-        passage.isHorizontallyResizable = false
-        passage.autoresizingMask = .width
-        passage.minSize = NSSize(width: 0, height: 184)
-        passage.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        passage.frame = NSRect(x: 0, y: 0, width: 800, height: 184)
-        passage.textContainer?.containerSize = NSSize(width: 800, height: CGFloat.greatestFiniteMagnitude)
-        passage.textContainer?.widthTracksTextView = true
-        passage.textContainerInset = NSSize(width: 2, height: 10)
+        passage.frame = NSRect(x: 0, y: 0, width: 800, height: 110)
         passage.setAccessibilityLabel("Words to type")
         passageScroll.documentView = passage
         passageScroll.hasVerticalScroller = true
         passageScroll.autohidesScrollers = true
         passageScroll.drawsBackground = false
-        passageScroll.heightAnchor.constraint(equalToConstant: 184).isActive = true
+        passageScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 110).isActive = true
+        let passageHeight = passageScroll.heightAnchor.constraint(equalTo: content.heightAnchor, multiplier: 0.145)
+        passageHeight.priority = .init(491)
         input.font = .monospacedSystemFont(ofSize: CGFloat(Settings(defaults: defaults).practiceTextSize), weight: .regular)
         input.placeholder = "Click here and start typing…"
-        input.setAccessibilityLabel("Word Sprint typing input")
+        input.setAccessibilityLabel("Practice typing input")
         input.allowsUndo = false
         input.isAutomaticSpellingCorrectionEnabled = false
         input.isContinuousSpellCheckingEnabled = false
@@ -192,28 +231,34 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         input.isVerticallyResizable = true
         input.isHorizontallyResizable = false
         input.autoresizingMask = .width
-        input.minSize = NSSize(width: 0, height: 104)
+        input.minSize = NSSize(width: 0, height: 80)
         input.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-        input.frame = NSRect(x: 0, y: 0, width: 800, height: 104)
+        input.frame = NSRect(x: 0, y: 0, width: 800, height: 80)
+        input.backgroundColor = PracticeUI.surfaceColor
         let inputScroll = NSScrollView()
         inputScroll.documentView = input
         inputScroll.hasVerticalScroller = true
         inputScroll.autohidesScrollers = true
+        inputScroll.backgroundColor = PracticeUI.surfaceColor
         inputScroll.borderType = .noBorder
-        inputScroll.heightAnchor.constraint(equalToConstant: 104).isActive = true
+        inputScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 80).isActive = true
+        let inputHeight = inputScroll.heightAnchor.constraint(equalTo: content.heightAnchor, multiplier: 0.10)
+        inputHeight.priority = .init(490)
         status.font = .systemFont(ofSize: 12)
         status.textColor = .secondaryLabelColor
-        let next = NSButton(title: "New test", target: self, action: #selector(newTest))
+        let next = NSButton(title: "New words", target: self, action: #selector(newTest))
         next.bezelStyle = .rounded
         next.bezelColor = PracticeUI.accentColor
         next.keyEquivalent = "\r"
         next.keyEquivalentModifierMask = [.command]
         next.toolTip = "New words · ⌘Return"
-        let retry = NSButton(title: "Retry these words", target: self, action: #selector(retryTest))
+        let retry = NSButton(title: "Retry", target: self, action: #selector(retryTest))
         retry.bezelStyle = .rounded
         retry.keyEquivalent = "r"
         retry.keyEquivalentModifierMask = [.command]
         retry.toolTip = "Restart the same words · ⌘R"
+        PracticeUI.styleButton(next, primary: true)
+        PracticeUI.styleButton(retry)
         let actions = PracticeUI.row([next, retry, PracticeUI.spacer()])
         resultTitle.textColor = .labelColor
         resultDetail.font = .systemFont(ofSize: 13)
@@ -226,12 +271,20 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         keyboard.meanings = KeyMeanings(data: data, mode: .english)
         keyboard.emphasizesCurrentChord = true
         keyboard.showsFunctionRow = false
-        keyboard.heightAnchor.constraint(equalToConstant: 220).isActive = true
-        guideCard = PracticeUI.column([hint, keyboard], spacing: 10)
-        let column = PracticeUI.column([title, subtitle, options, methods, PracticeUI.surface(metricRow),
-            PracticeUI.surface(passageScroll), PracticeUI.surface(inputScroll, padding: 4), status, actions, resultCard, guideCard], spacing: 16)
+        let keyboardHeight = keyboard.heightAnchor.constraint(equalTo: keyboard.widthAnchor, multiplier: KeyboardDiagramView.compactAspect)
+        keyboardHeight.priority = .init(491); keyboardHeight.isActive = true
+        let keyboardViewportHeight = keyboard.heightAnchor.constraint(lessThanOrEqualTo: content.heightAnchor, multiplier: 0.22)
+        guideCard = PracticeHints.keyboardGuide(caption: hintCaption, hint: hint, button: guideButton, keyboard: keyboard)
+        let passageCard = PracticeUI.surface(PracticeUI.column([
+            PracticeUI.label("WORDS TO TYPE", size: 10, weight: .semibold), passageScroll], spacing: 12), padding: 16)
+        wordContent = PracticeUI.column([options, passageCard, PracticeUI.surface(inputScroll, padding: 4),
+            guideCard, status, metricRow, actions, resultCard], spacing: 12)
+        lessonPane.isHidden = true
+        voicePane.isHidden = true
+        let column = PracticeUI.column([heading, wordContent, lessonPane, voicePane], spacing: 20)
         let scroll = NSScrollView()
-        scroll.drawsBackground = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = PracticeUI.pageColor
         scroll.hasVerticalScroller = true
         scroll.translatesAutoresizingMaskIntoConstraints = false
         content.addSubview(scroll)
@@ -240,19 +293,52 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         scroll.documentView = document
         column.translatesAutoresizingMaskIntoConstraints = false
         document.addSubview(column)
-        let width = column.widthAnchor.constraint(equalToConstant: 800)
-        width.priority = .init(490)
         NSLayoutConstraint.activate([
+            passageHeight, inputHeight, keyboardViewportHeight,
             scroll.leadingAnchor.constraint(equalTo: content.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: content.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: content.topAnchor), scroll.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             document.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor), document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor),
-            column.widthAnchor.constraint(lessThanOrEqualTo: document.widthAnchor, constant: -48),
-            column.widthAnchor.constraint(lessThanOrEqualToConstant: 800), width,
-            column.centerXAnchor.constraint(equalTo: document.centerXAnchor),
+            column.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 24),
+            column.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -24),
             column.topAnchor.constraint(equalTo: document.topAnchor, constant: 24),
-            column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24)
+            column.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24),
+            column.heightAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.heightAnchor, constant: -48)
         ])
+    }
+
+    func selectSection(_ section: PracticeSection) {
+        input.allowsLocalFocus = section == .words
+        input.relinquishFocus()
+        lessonPane.deactivate()
+        voicePane.deactivate()
+        self.section = section
+        defaults.set(section.rawValue, forKey: "practiceSection")
+        heading.stringValue = section.title
+        window?.title = "KeyChord · " + section.title
+        wordContent.isHidden = section != .words
+        lessonPane.isHidden = section != .lessons
+        voicePane.isHidden = section != .voice
+        switch section {
+        case .words:
+            if window?.isVisible == true { window?.makeFirstResponder(input); input.refreshFocus(); syncContext() }
+        case .lessons: lessonPane.activate()
+        case .voice: voicePane.activate()
+        }
+    }
+
+    private func perform(_ shortcut: PracticeShortcut) {
+        let pane = section == .lessons ? lessonPane : voicePane
+        switch shortcut {
+        case .hints:
+            if section == .words {
+                guard guideButton.isEnabled else { return }
+                guideChanged()
+            } else { pane.requestHint() }
+        case .replay: if section == .voice { voicePane.replayPrompt() }
+        case .retry: if section == .words { retryTest() } else { pane.retry() }
+        case .new: if section == .words { newTest() } else { pane.nextLesson() }
+        }
     }
 
     private var vocabulary: WordPracticeVocabulary { WordPracticeVocabulary.allCases[vocabularyPopup.indexOfSelectedItem] }
@@ -265,7 +351,7 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         let saved = defaults.integer(forKey: timed ? "wordSprintSeconds" : "wordSprintWords")
         lengthPopup.removeAllItems()
         lengthPopup.addItems(withTitles: choices.map { "\($0) \(timed ? "s" : "words")" })
-        lengthPopup.selectItem(at: choices.firstIndex(of: saved) ?? 1)
+        lengthPopup.selectItem(at: choices.firstIndex(of: saved) ?? (timed ? 1 : 0))
     }
     @objc private func goalChanged() { updateLengths(); configurationChanged() }
     @objc private func configurationChanged() {
@@ -275,25 +361,16 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         case .time(let seconds): defaults.set(seconds, forKey: "wordSprintSeconds")
         case .words(let count): defaults.set(count, forKey: "wordSprintWords")
         }
-        defaults.set(inputMode.selectedSegment == 1, forKey: "wordSprintKeyboard")
         newTest()
     }
     @objc private func guideChanged() {
-        defaults.set(guideButton.state == .on, forKey: "wordSprintGuide")
-        if guideButton.state == .on, session.startedAt != nil { usedGuide = true }
-        render()
-        window?.makeFirstResponder(input)
-    }
-    @objc private func inputMethodChanged() {
-        defaults.set(inputMode.selectedSegment == 1, forKey: "wordSprintKeyboard")
-        input.practice.setChordEnabled(inputMode.selectedSegment == 0)
-        window?.makeFirstResponder(input)
-        input.refreshFocus()
-        syncContext()
+        guard chordEnabled, !session.isFinished else { return }
+        hintedWord = session.currentWordIndex
         plannedFor = ""
+        usedGuide = true
         render()
+        window?.makeFirstResponder(input)
     }
-
     @objc func newTest() {
         let previous = session?.targetWords.first
         session = WordPracticeSession(vocabulary: vocabulary, goal: goal, seed: seed(), words: wordSource)
@@ -306,7 +383,9 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
     }
     private func resetInput() {
         timer?.invalidate()
+        timer = nil
         usedChords = false; usedKeyboard = false; usedGuide = false; announcedFinish = false
+        hintedWord = nil
         planRequest += 1; plannedFor = ""
         verifiedChordPreview = false; intermediateWord = nil
         chart.samples = []
@@ -314,9 +393,9 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         characterDetail.stringValue = ""
         input.isEditable = true
         input.clearForTask()
-        input.practice.setChordEnabled(inputMode.selectedSegment == 0)
+        input.practice.setChordEnabled(chordEnabled)
         render()
-        if window?.isVisible == true { window?.makeFirstResponder(input); input.refreshFocus() }
+        if section == .words, window?.isVisible == true { window?.makeFirstResponder(input); input.refreshFocus() }
     }
 
     func textView(_ textView: NSTextView, shouldChangeTextIn range: NSRange, replacementString: String?) -> Bool {
@@ -329,7 +408,7 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         if !replacement.isEmpty {
             usedChords = usedChords || input.isApplyingChordOutput
             usedKeyboard = usedKeyboard || !input.isApplyingChordOutput
-            usedGuide = usedGuide || (guideButton.state == .on && input.practice.chordEnabled)
+            usedGuide = usedGuide || (hintedWord != nil && input.practice.chordEnabled)
         }
         startTimerIfNeeded()
         return true
@@ -347,8 +426,12 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
 
     private func updateInputMode() {
         guard input.practice.ownsInput else { return }
-        inputMode.selectedSegment = input.practice.chordEnabled ? 0 : 1
-        guideButton.isEnabled = inputMode.selectedSegment == 0
+        if chordEnabled != input.practice.chordEnabled {
+            chordEnabled = input.practice.chordEnabled
+            defaults.set(!chordEnabled, forKey: "wordSprintKeyboard")
+        }
+        if !chordEnabled { hintedWord = nil }
+        guideButton.isEnabled = chordEnabled && !session.isFinished
     }
 
     /// Correct suffix chords can temporarily spell a base differently from the final word:
@@ -409,41 +492,49 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         let metrics = session.metrics(at: clock())
         let started = session.startedAt != nil
         metricLabels[0].stringValue = started ? String(format: "%.0f", metrics.wpm) : "—"
-        metricLabels[1].stringValue = started ? String(format: "%.0f", metrics.rawWPM) : "—"
-        metricLabels[2].stringValue = String(format: "%.0f%%", metrics.accuracy)
-        metricLabels[3].stringValue = metrics.elapsed >= 2 ? String(format: "%.0f%%", metrics.consistency) : "—"
+        metricLabels[1].stringValue = String(format: "%.0f%%", metrics.accuracy)
         switch session.goal {
-        case .time(let limit): metricLabels[4].stringValue = "\(max(0, Int((Double(limit) - metrics.elapsed).rounded(.up))))s"
-        case .words(let limit): metricLabels[4].stringValue = "\(max(0, limit - metrics.completedWords))"
+        case .time(let limit): metricLabels[2].stringValue = "\(max(0, Int((Double(limit) - metrics.elapsed).rounded(.up))))s"
+        case .words(let limit): metricLabels[2].stringValue = "\(max(0, limit - metrics.completedWords))"
         }
-        for (index, title) in ["WPM", "Raw WPM", "Accuracy", "Consistency", "Remaining"].enumerated() {
+        for (index, title) in ["WPM", "Accuracy", "Remaining"].enumerated() {
             metricLabels[index].setAccessibilityLabel(title + ": " + metricLabels[index].stringValue)
         }
         renderPassage()
         keyboard.held = Set(input.practice.heldKeys.indices.map { data.layout.keys[$0].code })
         resultCard.isHidden = !session.isFinished
-        guideButton.isEnabled = inputMode.selectedSegment == 0
-        guideCard.isHidden = guideButton.state != .on || inputMode.selectedSegment != 0 || session.isFinished
+        guideButton.isEnabled = chordEnabled && !session.isFinished
+        if hintedWord != session.currentWordIndex || !chordEnabled || session.isFinished {
+            hintedWord = nil
+            planRequest += 1; plannedFor = ""
+            keyboard.target = []
+        }
+        hintCaption.stringValue = hintedWord == nil ? "KEYBOARD" : "THIS WORD"
+        hint.textColor = hintedWord == nil ? .secondaryLabelColor : .labelColor
         if session.isFinished {
             timer?.invalidate(); timer = nil
             input.isEditable = false
             input.relinquishFocus()
             let method = usedChords && usedKeyboard ? "Chords + keyboard" : usedChords ? "Chords" : "Keyboard"
             resultDetail.stringValue = "\(session.vocabulary.title) · \(session.goal.title) · \(method)\(usedGuide ? " · guided" : "") · \(String(format: "%.1f", metrics.elapsed))s"
-            characterDetail.stringValue = "Characters: \(metrics.correct) correct / \(metrics.incorrect) incorrect / \(metrics.extra) extra / \(metrics.missed) missed\n\(metrics.correctWords) correct words · \(metrics.mistakes) mistyped characters, including corrected mistakes"
+            characterDetail.stringValue = "\(metrics.correctWords) correct words · \(metrics.mistakes) \(metrics.mistakes == 1 ? "mistake" : "mistakes") · \(String(format: "%.0f", metrics.rawWPM)) raw WPM"
             chart.samples = session.samples
-            status.stringValue = "Test complete. Start a new test, or retry the same words."
+            status.stringValue = "Practice complete. Try new words or retry."
+            hint.stringValue = "Start new words or retry to keep practicing."
+            keyboard.held = []
             if !announcedFinish {
                 announcedFinish = true
                 NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
-                    userInfo: [.announcement: "Test complete. \(metricLabels[0].stringValue) words per minute. \(metricLabels[2].stringValue) accuracy.",
+                    userInfo: [.announcement: "Practice complete. \(metricLabels[0].stringValue) words per minute. \(metricLabels[1].stringValue) accuracy.",
                                .priority: NSAccessibilityPriorityLevel.medium.rawValue])
             }
         } else {
             status.stringValue = started ? "\(metrics.completedWords) words complete · Space moves on · Backspace corrects mistakes"
-                : inputMode.selectedSegment == 0 ? "Chord words as usual; spaces between words are automatic. Tap right Option to switch to keyboard typing."
-                : "Type the highlighted words. Space moves on; Backspace corrects mistakes."
-            if !guideCard.isHidden { updateGuide() }
+                : chordEnabled ? "Hold the chord keys together, then release. Right Option switches to ordinary typing."
+                : "Type the words. Right Option switches to chords."
+            if hintedWord != nil { updateGuide() }
+            else { hint.stringValue = chordEnabled ? "Reveal the combination for this word with Hint or ⇧⌘H."
+                                                   : "Tap right Option to use chords." }
         }
     }
 
@@ -453,23 +544,24 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         let output = NSMutableAttributedString(string: "")
         let actual = session.typedWords
         let current = session.currentWordIndex
-        var cursor = 0
+        var activeRange: NSRange?
+        var lastRange = NSRange(location: 0, length: 0)
         // Keep long timed sessions bounded in the view; the session retains the targets for scoring.
         let first = max(0, current - 12)
         let last = min(session.targetWords.count, current + 40)
         for index in first..<last {
             if index > first { output.append(NSAttributedString(string: " ")) }
+            let wordStart = output.length
             let expected = Array(session.targetWords[index])
             let entered = index < actual.count ? Array(actual[index]) : []
-            if index == current { cursor = output.length + min(entered.count, expected.count) }
             for (position, character) in expected.enumerated() {
-                var color: NSColor = .tertiaryLabelColor
+                var color: NSColor = .secondaryLabelColor
                 if position < entered.count {
                     let preview = intermediateWord.map { $0.index == index && $0.text == String(entered) } == true
                     color = preview || character == entered[position] ? .labelColor : .systemRed
                 }
                 else if index < current { color = .systemRed }
-                else if index == current { color = .secondaryLabelColor }
+                else if index == current { color = .labelColor }
                 var attributes: [NSAttributedString.Key: Any] = [.foregroundColor: color]
                 if index == current, position == entered.count, !session.isFinished {
                     attributes[.backgroundColor] = PracticeUI.accentColor.withAlphaComponent(0.18)
@@ -481,13 +573,16 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
             if entered.count > expected.count {
                 output.append(NSAttributedString(string: String(entered.dropFirst(expected.count)), attributes: [.foregroundColor: NSColor.systemRed]))
             }
+            lastRange = NSRange(location: wordStart, length: output.length - wordStart)
+            if index == current { activeRange = lastRange }
         }
         if output.length > 0 {
             output.addAttributes([.font: NSFont.monospacedSystemFont(ofSize: CGFloat(Settings(defaults: defaults).practiceTextSize), weight: .regular),
                                   .paragraphStyle: paragraph], range: NSRange(location: 0, length: output.length))
         }
-        passage.textStorage?.setAttributedString(output)
-        passage.scrollRangeToVisible(NSRange(location: min(cursor, output.length), length: 0))
+        passage.activeWordRange = activeRange ?? lastRange
+        passage.textStorage.setAttributedString(output)
+        passage.followActiveWord()
     }
 
     private func updateGuide() {
@@ -514,15 +609,21 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
             keyboard.target = []
             return
         }
+        guard token != word else {
+            hint.stringValue = "Press Space to continue."
+            keyboard.target = [49]
+            return
+        }
         let suffix = String(word.dropFirst(token.count))
             + (index + 1 < session.targetWords.count ? " " + session.targetWords[index + 1] : "")
         let data = data, limit = rolloverLimit, usable = usable
-        hint.stringValue = "Preparing chord guide…"
+        hint.stringValue = "Finding the next chord…"
         planningQueue.async { [weak self] in
             let planner = TypingPlanner(data: data, mode: .english, rolloverLimit: limit, usable: usable)
             let plan = planner.planContinuation(typed + suffix, from: typed.count)
             DispatchQueue.main.async { [weak self] in
-                guard let self, request == self.planRequest, !self.session.isFinished else { return }
+                guard let self, request == self.planRequest, self.hintedWord == index,
+                      self.chordEnabled, !self.session.isFinished else { return }
                 guard let step = plan.guide.steps.first else { self.hint.stringValue = ""; self.keyboard.target = []; return }
                 self.showHint(step)
             }
@@ -534,10 +635,22 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         case .chord(let names, let shift):
             let codes = names.compactMap { data.layout.indexByName[$0] }.map { data.layout.keys[$0].code }
             keyboard.target = Set(codes + (shift ? [56] : []))
-            hint.stringValue = "\(TypingGuideWindowController.visible(step.output)): " + codes.map { KeyboardDiagramView.name(for: $0) }.joined(separator: " + ") + (shift ? " + Shift" : "")
+            hint.stringValue = "\(ChordDisplay.visible(step.output)): " + codes.map { KeyboardDiagramView.name(for: $0) }.joined(separator: " + ") + (shift ? " + Shift" : "")
         case .typeNormally(let text): hint.stringValue = "Tap right Option and type \(text)."; keyboard.target = []
         case .key: hint.stringValue = "Press Space to continue."; keyboard.target = []
         }
+    }
+
+    /// A customization refreshes the engine and hints while retaining the passage, input and results.
+    func update(data: EngineData, rolloverLimit: Int, usable: @escaping (KeySet) -> Bool) {
+        self.data = data; self.rolloverLimit = rolloverLimit; self.usable = usable
+        input.practice.replaceData(data)
+        wordPlanner = TypingPlanner(data: data, mode: .english, rolloverLimit: rolloverLimit, usable: usable)
+        wordPlans.removeAll(); planRequest += 1; plannedFor = ""; intermediateWord = nil
+        keyboard.layout = data.layout; keyboard.meanings = KeyMeanings(data: data, mode: .english)
+        lessonPane.update(data: data, rolloverLimit: rolloverLimit, usable: usable)
+        voicePane.update(data: data, rolloverLimit: rolloverLimit, usable: usable)
+        syncContext(); render()
     }
 
     func present() {
@@ -546,16 +659,25 @@ final class WordPracticeWindowController: NSWindowController, NSWindowDelegate, 
         showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
-        window?.makeFirstResponder(input)
-        input.refreshFocus()
+        focusCurrentSection()
     }
-    func windowDidBecomeKey(_ notification: Notification) { input.refreshFocus(); syncContext() }
-    func windowDidResignKey(_ notification: Notification) { input.relinquishFocus() }
-    func windowWillClose(_ notification: Notification) { timer?.invalidate(); timer = nil; input.relinquishFocus() }
+    private func focusCurrentSection() {
+        switch section {
+        case .words: window?.makeFirstResponder(input); input.refreshFocus(); syncContext()
+        case .lessons: lessonPane.activate()
+        case .voice: voicePane.activate()
+        }
+    }
+    func windowDidBecomeKey(_ notification: Notification) { focusCurrentSection() }
+    func windowDidResignKey(_ notification: Notification) { input.relinquishFocus(); lessonPane.deactivate(); voicePane.deactivate() }
+    func windowWillClose(_ notification: Notification) {
+        timer?.invalidate(); timer = nil
+        input.relinquishFocus(); lessonPane.deactivate(); voicePane.deactivate()
+    }
 }
 
 /// Cumulative speed and per-sample errors, drawn natively with adaptive colors.
-final class WordPracticeChartView: NSView {
+final class PracticeChartView: NSView {
     var samples: [WordPracticeSample] = [] { didSet { needsDisplay = true } }
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .image }

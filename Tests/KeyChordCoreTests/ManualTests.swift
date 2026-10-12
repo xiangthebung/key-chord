@@ -19,11 +19,12 @@ struct ManualTests {
         #expect(html.contains("<span class=\"means number\">join</span>"))
     }
 
-    @Test("Links to every lesson, a keyboard picture, and escaped C++ symbols")
+    @Test("One practice destination, a keyboard picture, and escaped C++ symbols")
     func structure() {
         let html = Self.html
-        for i in Lessons.all.indices { #expect(html.contains("href=\"keychord://lesson/\(i)\"")) }
-        #expect(html.contains("href=\"keychord://course\""))
+        #expect(html.contains("href=\"keychord://practice\""))
+        #expect(!html.contains("keychord://lesson"))
+        #expect(!html.contains("keychord://course"))
         #expect(html.contains("<svg class=\"keyboard\""))
         #expect(html.contains("&amp;&amp;"))                        // the && operator
         #expect(!html.contains("<span class=\"out\"><<"))

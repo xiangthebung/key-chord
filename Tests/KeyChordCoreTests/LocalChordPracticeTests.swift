@@ -124,6 +124,26 @@ private func releaseChord(_ spec: String, in practice: LocalChordPractice, flags
     #expect(releaseChord("S+C+J", in: practice).routed.actions == [.insert("sat")])
 }
 
+@Test func localCppLessonsRetainTheirLanguageAcrossFocusAndRightOption() {
+    let practice = LocalChordPractice(data: defaults, mode: .cpp)
+    practice.setFocus(true, globalCaptureSuspended: true)
+    let lesson = Course.steps.first { $0.mode == .cpp }!
+    let guide = TypingPlanner(data: defaults, mode: .cpp).plan(lesson.text)
+    guard case .chord(let names, _) = guide.steps[0].action else { Issue.record("expected a C++ chord"); return }
+    #expect(!releaseChord(names.joined(separator: "+"), in: practice).routed.actions.isEmpty)
+    practice.setFocus(false, globalCaptureSuspended: false)
+    practice.setFocus(true, globalCaptureSuspended: true)
+    #expect(practice.chordEnabled)
+    _ = practice.handle(.modifierDown(code: 61, key: .option, time: 10))
+    _ = practice.handle(.modifierUp(code: 61, key: .option, time: 100))
+    #expect(!practice.chordEnabled)
+    _ = practice.handle(.modifierDown(code: 61, key: .option, time: 110))
+    let resumed = practice.handle(.modifierUp(code: 61, key: .option, time: 200))
+    #expect(resumed.routed.events == [.modeChanged(.chord(.cpp))])
+    practice.setMode(.english)
+    #expect(releaseChord("S+C+J", in: practice).attempt?.insertedText == "sat")
+}
+
 @Test func localEvidenceReportsOnlyCapturedDifferences() throws {
     let output = releaseChord("S+C", in: ownedLocalPractice())
     let evidence = try #require(output.attempt)

@@ -48,7 +48,7 @@ enum ChordText {
         }
         for (i, p) in parts.enumerated() {
             if i > 0 { add("  ·  ", .tertiaryLabelColor) }
-            let meaning = p.role == .command ? p.text : TypingGuideWindowController.visible(p.text)
+            let meaning = p.role == .command ? p.text : ChordDisplay.visible(p.text)
             add(meaning, p.text == "?" ? .systemOrange : color(for: p.role), bold: true)
             let keysText = p.keys == ["⇧"]
                 ? meanings?.label(for: 56, physical: "⇧", style: Settings().keyLabelStyle) ?? "⇧"
@@ -57,7 +57,7 @@ enum ChordText {
         }
         add("   →  ", .tertiaryLabelColor)
         switch r.outcome {
-        case .text(let t): add(TypingGuideWindowController.visible(t), .labelColor, bold: true)
+        case .text(let t): add(ChordDisplay.visible(t), .labelColor, bold: true)
         case .command(let c): add(c, KeyboardDiagramView.color(for: .special), bold: true)
         case .nothing: add("no chord for these keys", .systemOrange, bold: true)
         }

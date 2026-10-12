@@ -8,7 +8,15 @@ KEYCHORD_UI_TEMP_DIR=$(mktemp -d /tmp/keychord-ui-checks.XXXXXX)
 trap 'rm -rf "$KEYCHORD_UI_TEMP_DIR"' EXIT
 KEYCHORD_UI_SOURCES=(Sources/KeyChord/*.swift)
 KEYCHORD_UI_SOURCES=(${KEYCHORD_UI_SOURCES:#Sources/KeyChord/main.swift})
-swiftc -I "$KEYCHORD_UI_BIN_DIR/Modules" "$KEYCHORD_UI_BIN_DIR"/KeyChordCore.build/*.o \
+if [[ -d "$KEYCHORD_UI_BIN_DIR/Modules" ]]; then
+  KEYCHORD_UI_MODULE_DIR="$KEYCHORD_UI_BIN_DIR/Modules"
+  KEYCHORD_UI_CORE_OBJECTS=("$KEYCHORD_UI_BIN_DIR"/KeyChordCore.build/*.o)
+else
+  # SwiftPM's Swift Build engine emits a combined object and module beside the executable.
+  KEYCHORD_UI_MODULE_DIR="$KEYCHORD_UI_BIN_DIR"
+  KEYCHORD_UI_CORE_OBJECTS=("$KEYCHORD_UI_BIN_DIR/KeyChordCore.o")
+fi
+swiftc -I "$KEYCHORD_UI_MODULE_DIR" "${KEYCHORD_UI_CORE_OBJECTS[@]}" \
   "${KEYCHORD_UI_SOURCES[@]}" Tests/KeyChordUIChecks/main.swift \
   -framework AppKit -framework Carbon -framework ApplicationServices -framework WebKit -framework AVFoundation \
   -o "$KEYCHORD_UI_TEMP_DIR/checks"

@@ -5,8 +5,37 @@ import Foundation
 import KeyChordCore
 
 final class DataStore {
-    let directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("KeyChord", isDirectory: true)
+    let directory: URL
+
+    init(directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("KeyChord", isDirectory: true)) {
+        self.directory = directory
+    }
+
+    private struct CustomChordFile: Codable {
+        var version = 2
+        var chords: [CustomChord]
+    }
+    private enum CustomChordFileError: LocalizedError {
+        case unsupportedVersion
+        var errorDescription: String? { "These custom chords were saved by a newer version of KeyChord." }
+    }
+    var customChordsURL: URL { directory.appendingPathComponent("custom-chords.json") }
+
+    func readCustomChords() throws -> [CustomChord] {
+        guard FileManager.default.fileExists(atPath: customChordsURL.path) else { return [] }
+        let file = try JSONDecoder().decode(CustomChordFile.self, from: Data(contentsOf: customChordsURL))
+        guard (1...2).contains(file.version) else { throw CustomChordFileError.unsupportedVersion }
+        return file.chords
+    }
+
+    func writeCustomChords(_ chords: [CustomChord]) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let contents = try encoder.encode(CustomChordFile(chords: chords))
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try contents.write(to: customChordsURL, options: .atomic)
+    }
 
     var probeReportURL: URL { directory.appendingPathComponent("probe-report.txt") }
 
@@ -70,27 +99,10 @@ final class DataStore {
 
     func readProbeReport() -> String? { try? String(contentsOf: probeReportURL, encoding: .utf8) }
 
-    func writeProbeReport(_ text: String) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try text.write(to: probeReportURL, atomically: true, encoding: .utf8)
-    }
-
     /// The keyboard's electrical matrix (see KeyboardWiring). Installed for the MacBook Pro 2021 keyboard.
     var wiringURL: URL { directory.appendingPathComponent("wiring.txt") }
 
     func readWiring() -> String? { try? String(contentsOf: wiringURL, encoding: .utf8) }
-
-    /// Wiring Check results (key names only), one file per check.
-    func wiringCheckURL(_ name: String) -> URL {
-        directory.appendingPathComponent(name == "1" ? "wiring-check.txt" : "wiring-check-\(name).txt")
-    }
-
-    func readWiringCheck(_ name: String) -> String? { try? String(contentsOf: wiringCheckURL(name), encoding: .utf8) }
-
-    func writeWiringCheck(_ name: String, _ text: String) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try text.write(to: wiringCheckURL(name), atomically: true, encoding: .utf8)
-    }
 
     /// FNV-1a hashes of earlier bundled wiring files, replaced when found unedited.
     private static let supersededWiring: Set<UInt64> = [0xbc0a_31da_d62c_04c2]   // before the Wiring Check
@@ -113,11 +125,6 @@ final class DataStore {
     var matrixScanURL: URL { directory.appendingPathComponent("matrix-scan.txt") }
 
     func readMatrixScan() -> String? { try? String(contentsOf: matrixScanURL, encoding: .utf8) }
-
-    func writeMatrixScan(_ text: String) throws {
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        try text.write(to: matrixScanURL, atomically: true, encoding: .utf8)
-    }
 }
 
 final class Settings {
@@ -163,16 +170,6 @@ final class Settings {
         set { d.set(newValue, forKey: "overlayVisible") }
     }
 
-    var recallPractice: Bool {
-        get { d.bool(forKey: "recallPractice") }
-        set { d.set(newValue, forKey: "recallPractice") }
-    }
-
-    var practiceReferenceVisible: Bool {
-        get { d.bool(forKey: "practiceReferenceVisible") }
-        set { d.set(newValue, forKey: "practiceReferenceVisible") }
-    }
-
     /// A bounded size keeps the passage and input readable without breaking the narrow workspace.
     static let practiceTextSizeRange = 16...30
     var practiceTextSize: Int {
@@ -184,107 +181,4 @@ final class Settings {
         set { d.set(min(Self.practiceTextSizeRange.upperBound, max(Self.practiceTextSizeRange.lowerBound, newValue)),
                     forKey: "practiceTextSize") }
     }
-}
-
-/// One aggregate per chord, including review dates; contains no passages or event sequences.
-final class PracticePerformanceStore {
-    private let defaults: UserDefaults
-    private(set) var history: PracticeHistory
-    private static let key = "chordPracticePerformance.v1"
-    private let day: () -> Int
-
-    init(defaults: UserDefaults = .standard, day: @escaping () -> Int = { PracticePerformanceStore.today }) {
-        self.defaults = defaults
-        self.day = day
-        history = defaults.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(PracticeHistory.self, from: $0) }
-            ?? PracticeHistory()
-    }
-
-    func record(_ chord: PracticeChord, correct: Bool, seconds: Double, hinted: Bool) {
-        history.record(chord, correct: correct, seconds: seconds, hinted: hinted, day: day())
-        if let data = try? JSONEncoder().encode(history) { defaults.set(data, forKey: Self.key) }
-    }
-
-    static var today: Int { Int(Date().timeIntervalSince1970 / 86_400) }
-}
-
-/// Which course steps are done, and where the learner left off. Only step names are stored, never typed text.
-final class CourseProgress {
-    private let d: UserDefaults
-
-    init(defaults: UserDefaults = .standard) { d = defaults }
-
-    var completed: Set<String> {
-        let saved = Set(d.stringArray(forKey: "courseCompleted") ?? [])
-        let migrated = Course.migratedCompletedIDs(saved, fromVersion: d.integer(forKey: "courseCurriculumVersion"))
-        if migrated != saved { d.set(migrated.sorted(), forKey: "courseCompleted") }
-        d.set(Course.curriculumVersion, forKey: "courseCurriculumVersion")
-        return migrated
-    }
-
-    /// A complete unassisted session is a pass, not proof of delayed retention.
-    var unassisted: Set<String> { Set(d.stringArray(forKey: "courseUnassisted.v1") ?? []) }
-
-    private struct DelayedRecord: Codable {
-        let mapping: UInt64
-        var check: CourseDelayedCheck
-    }
-    private var delayedRecords: [String: DelayedRecord] {
-        get { d.data(forKey: "courseDelayedChecks.v1").flatMap {
-            try? JSONDecoder().decode([String: DelayedRecord].self, from: $0)
-        } ?? [:] }
-        set {
-            if let encoded = try? JSONEncoder().encode(newValue) { d.set(encoded, forKey: "courseDelayedChecks.v1") }
-        }
-    }
-
-    /// Dates are whole epoch days. An obsolete mapping never supplies retention evidence.
-    func delayedCheck(_ id: String, mapping: UInt64) -> CourseDelayedCheck {
-        guard let record = delayedRecords[id], record.mapping == mapping else { return CourseDelayedCheck() }
-        return record.check
-    }
-
-    func recordDelayedCheck(_ id: String, mapping: UInt64, cleanUnaidedPass: Bool,
-                            day: Int = PracticePerformanceStore.today) {
-        var records = delayedRecords
-        var check = delayedCheck(id, mapping: mapping)
-        check.record(cleanUnaidedPass: cleanUnaidedPass, day: day)
-        records[id] = DelayedRecord(mapping: mapping, check: check)
-        delayedRecords = records
-    }
-
-    func markDone(_ id: String, unassisted: Bool = false) {
-        var done = completed
-        done.insert(id)
-        d.set(done.sorted(), forKey: "courseCompleted")
-        if unassisted {
-            var passed = self.unassisted
-            passed.insert(id)
-            d.set(passed.sorted(), forKey: "courseUnassisted.v1")
-        }
-    }
-
-    /// The step opened last.
-    var lastStep: String? {
-        get { d.string(forKey: "courseLastStep") }
-        set { d.set(newValue, forKey: "courseLastStep") }
-    }
-
-    /// Where to pick the course up: the step opened last if it isn't done, else the next step not done.
-    var resumeIndex: Int {
-        let done = completed
-        let last = lastStep.flatMap(Course.index(of:)) ?? 0
-        if !done.contains(Course.steps[last].id) { return last }
-        let order = (Array(last..<Course.steps.count) + Array(0..<last)).filter { Course.steps[$0].mode == Course.steps[last].mode }
-        return order.first { !done.contains(Course.steps[$0].id) } ?? last
-    }
-
-    /// Track counts keep the optional C++ course outside English progress.
-    func practicedCount(mode: SubMode) -> Int {
-        let done = completed
-        return Course.steps.filter { $0.mode == mode && done.contains($0.id) }.count
-    }
-
-    /// Total practiced lessons, retained for callers that need both tracks.
-    var doneCount: Int { Course.steps.filter { completed.contains($0.id) }.count }
 }

@@ -45,19 +45,21 @@ public struct LocalChordOutput: Equatable, Sendable {
 /// emit abandoned output, and local/global engines can never both handle the same owned event.
 public final class LocalChordPractice {
     private var router: EventRouter
-    private let data: EngineData
+    private var data: EngineData
     private var captured = KeySet()
     private var wantsChord = true
+    private var practiceMode: SubMode
     public private(set) var focused = false
     public private(set) var globalCaptureSuspended = false
 
-    public init(data: EngineData) {
+    public init(data: EngineData, mode: SubMode = .english) {
         self.data = data
-        router = EventRouter(data: data)
+        practiceMode = mode
+        router = EventRouter(data: data, lastSubMode: mode)
     }
 
     public var ownsInput: Bool { focused && globalCaptureSuspended }
-    public var chordEnabled: Bool { ownsInput && router.effectiveMode == .chord(.english) }
+    public var chordEnabled: Bool { ownsInput && router.effectiveMode == .chord(practiceMode) }
     public var heldKeys: KeySet { KeySet(router.engine.heldChordKeys) }
     public var capturedKeys: KeySet { captured }
     public var undoDepth: Int { router.engine.undoDepth }
@@ -68,17 +70,24 @@ public final class LocalChordPractice {
         self.globalCaptureSuspended = globalCaptureSuspended
         guard ownsInput != previouslyOwned else { return }
         // A fresh router also forgets per-press routing and pending Option taps.
-        router = EventRouter(data: data)
+        router = EventRouter(data: data, lastSubMode: practiceMode)
         captured = KeySet()
-        if ownsInput && wantsChord { _ = router.selectSubMode(.english) }
+        if ownsInput && wantsChord { _ = router.selectSubMode(practiceMode) }
     }
 
     public func setChordEnabled(_ enabled: Bool) {
         wantsChord = enabled
         captured = KeySet()
         if ownsInput {
-            _ = enabled ? router.selectSubMode(.english) : router.forceNormal()
+            _ = enabled ? router.selectSubMode(practiceMode) : router.forceNormal()
         }
+    }
+
+    /// Lessons choose their own language without changing the global typing mode.
+    public func setMode(_ mode: SubMode) {
+        practiceMode = mode
+        wantsChord = true
+        reset()
     }
 
     /// Reset after a correction, paste, native Undo, or cursor move. Ordinary edits remain fully
@@ -95,9 +104,14 @@ public final class LocalChordPractice {
     }
 
     public func reset() {
-        router = EventRouter(data: data)
+        router = EventRouter(data: data, lastSubMode: practiceMode)
         captured = KeySet()
-        if ownsInput && wantsChord { _ = router.selectSubMode(.english) }
+        if ownsInput && wantsChord { _ = router.selectSubMode(practiceMode) }
+    }
+
+    public func replaceData(_ data: EngineData) {
+        self.data = data
+        reset()
     }
 
     public func handle(_ input: RouterInput) -> LocalChordOutput {
@@ -124,17 +138,16 @@ public final class LocalChordPractice {
         case .modifierDown, .modifierUp, .mouseDown:
             if !router.engine.chordInProgress { captured = KeySet() }
         }
-        // Onboarding stays in English. A user-entered mode-switch chord stops local chording
+        // Local practice stays in its selected language. A mode-switch chord stops local chording
         // rather than silently changing the lesson's mapping.
-        if router.engine.subMode != .english {
-            // forceNormal alone retains lastSubMode=C++, making every subsequent right Option
-            // tap re-enter the rejected mode. Start with English selected for the next local tap.
-            router = EventRouter(data: data, lastSubMode: .english)
+        if router.engine.subMode != practiceMode {
+            // A fresh router makes the next right Option tap return to the lesson's language.
+            router = EventRouter(data: data, lastSubMode: practiceMode)
             wantsChord = false
             output.events.removeAll { if case .modeChanged = $0 { return true }; return false }
             output.events.append(.modeChanged(.normal))
         } else {
-            wantsChord = router.selectedMode == .chord(.english)
+            wantsChord = router.selectedMode == .chord(practiceMode)
         }
         return LocalChordOutput(routed: output, attempt: attempt)
     }

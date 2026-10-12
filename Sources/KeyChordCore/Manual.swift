@@ -1,7 +1,7 @@
 // The KeyChord manual, as an HTML page. The text is written here; the keyboard picture, the tables and every
 // example chord come from the current layout and dictionaries, and the examples from the TypingPlanner, so the
-// manual always shows chords that type what it says. Links "keychord://lesson/N" open lesson N (0-based) in
-// the Typing Guide. Standard library only.
+// reference always shows chords that type what it says. Links open the one Practice window.
+// Standard library only.
 
 public enum Manual {
     /// `keyboard` is the keyboard the pictures show and whose legends name the keys.
@@ -204,11 +204,6 @@ public enum Manual {
             return "<text class=\"\(cls)\" x=\"\(x)\" y=\"\(y)\" text-anchor=\"\(anchor)\"\(style)>\(esc(s))</text>"
         }
 
-        func lessonLink(_ i: Int) -> String {
-            guard i < Lessons.all.count else { return "" }
-            return "<a class=\"practice\" href=\"keychord://lesson/\(i)\">Practice: \(esc(Lessons.all[i].title)) ›</a>"
-        }
-
         // MARK: Page
 
         func page() -> String {
@@ -228,22 +223,18 @@ public enum Manual {
             let snippets = entries(data.cpp) { $0.isSnippet }
 
             var h = "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
-            h += "<meta name=\"color-scheme\" content=\"light dark\"><title>Learn KeyChord</title><style>\(Manual.css)</style></head><body><main>"
+            h += "<meta name=\"color-scheme\" content=\"light dark\"><title>KeyChord Reference</title><style>\(Manual.css)</style></head><body><main>"
 
             h += """
-            <h1>Learn KeyChord</h1>
-            <p class="lead">KeyChord types whole syllables and words at once. Press a few keys together, let go,
-            and the text appears. This manual starts with letters and builds up to full sentences; each part
-            ends with a practice text for the Typing Guide.</p>
-            <p class="callout">New to chords? <a href="keychord://course">Take the course</a>: \(Course.steps.count)
-            short steps that teach a few keys at a time, each with a text that uses only what you have learned so far.
-            To keep the keyboard on screen while you type in other apps, turn on <b>Reference Overlay</b> in the
-            KeyChord menu: it also shows what the keys you hold will type, before you let go.</p>
+            <h1>KeyChord Reference</h1>
+            <p class="lead">Press chord keys together, then release them to type a syllable or word.</p>
+            <p class="callout"><a href="keychord://practice">Open Practice</a> to try chords with hints.
+            The keyboard overlay in Settings keeps the mapping visible while you type in other apps.</p>
 
             <h2 id="start">Getting started</h2>
             <ol>
-            <li><b>Allow Accessibility access</b> when KeyChord asks. It needs it to read the chord keys and type
-            for you. Typed text stays on your Mac.</li>
+            <li><b>Open Practice</b> to type locally with hints. No permissions are needed.
+            To type in other apps, choose <b>Enable Typing in Other Apps</b> in the menu and allow Accessibility access.</li>
             <li><b>Tap the right ⌥ Option key</b> to turn chord typing on. The menu bar shows <i>English</i> next to
             the keyboard icon. Tap it again to type normally.</li>
             <li><b>Press all the keys of a chord, then let go.</b> You don't need to press them at exactly the same
@@ -275,13 +266,11 @@ public enum Manual {
             <h3><span class="t onset">Start</span> letters</h3>\(table(clusters(.onset)))
             <h3><span class="t vowel">Vowels</span></h3>\(table(clusters(.vowel)))
             <h3><span class="t coda">End</span> letters</h3>\(table(clusters(.coda)))
-            \(lessonLink(0)) \(lessonLink(1))
 
             <h2 id="words">Common words</h2>
             <p>Some frequent words have a chord of their own, often \(spellKey) with a few of the word's letters.
             “I” is the \(index("M").map { kbd($0) } ?? "") vowel key alone.</p>
             \(table(briefs.map { ($0.0, $0.1.text) }))
-            \(lessonLink(2))
 
             <h2 id="capitals">Capitals and punctuation</h2>
             <ul>
@@ -297,16 +286,15 @@ public enum Manual {
             h += """
             <li>With Caps Lock on, everything you chord comes out in capitals.</li>
             </ul>
-            <p>Punctuation attaches to the word before it, and opening brackets and quotes to the word after:</p>
+            <p>Punctuation attaches to the word before it, and opening brackets and quotes to the word after.
+            The opening double-quote chord also closes an open quote, without adding a space before it:</p>
             \(table(punctuation.map { ($0.0, $0.1.text + ($0.1.capitalizeNext ? "  then a capital" : "")) }))
-            \(lessonLink(3))
 
             <h2 id="endings">Endings</h2>
             <p>Type the word, then the ending as a chord of its own. KeyChord joins it to the word and fixes the
             spelling: it doubles letters, drops a silent e and turns y into i where English does.</p>
             \(table(suffixes.map { ($0.0, "-" + $0.1.text) }))
             \(example("stopping"))\(example("making"))\(example("tried"))\(example("boxes"))
-            \(lessonLink(4))
 
             <h2 id="long">Long words</h2>
             <p>A long word takes a chord for each part. KeyChord puts a space before every chord, so press the space
@@ -314,9 +302,8 @@ public enum Manual {
             Whichever thumb isn't on a vowel presses it.</p>
             \(example("anything"))\(example("possible"))
             <p class="small">A few chords can't take the space bar, because they already use six keys or the keyboard
-            would drop that combination. Hold <kbd class="mod">⇧</kbd> Shift instead for those; the Typing Guide
+            would drop that combination. Hold <kbd class="mod">⇧</kbd> Shift instead for those; Practice
             says when.</p>
-            \(lessonLink(5))
 
             <h2 id="letters">Letters and numbers</h2>
             <p>Any word can be spelled letter by letter: \(spellKey) plus the key printed with the letter. Add
@@ -325,7 +312,6 @@ public enum Manual {
             <p>The number row types digits. Several digits go in one chord when they read left to right on the
             keyboard, and the next chord joins on:</p>
             \(example("1234"))\(example("2026"))
-            \(lessonLink(6))
 
             <h2 id="mistakes">Fixing mistakes</h2>
             <p>\(undo) undoes the last chord, and you can press it again to go further back. ⌫ Delete works as
@@ -333,7 +319,7 @@ public enum Manual {
 
             <h2 id="normal">Typing without chords</h2>
             <p>Tap the right ⌥ Option key, type as usual, and tap it again to go back to chords. The space bar
-            (\(space)) pressed alone types a space in both. The Typing Guide says when a piece of text has no chord.</p>
+            (\(space)) pressed alone types a space in both. Practice says when a piece of text has no chord.</p>
 
             <h2 id="cpp">Programming in C++</h2>
             <p>\(modeSwitch) switches between English and C++; the menu bar shows which one is on. In C++ mode,
@@ -345,30 +331,33 @@ public enum Manual {
             <h3>Snippets</h3><p>These type a pair and put the cursor in between; \(name(commandKeys(.snippetExit, in: data.cpp))) jumps past the end.</p>
             \(table(snippets.map { ($0.0, Manual.snippetText($0.1)) }, wide: true))
             <h3>Names and commands</h3>\(table(commands(data.cpp) + commands(data.shared), wide: true))
-            \(lessonLink(7))
 
             <h2 id="practice">Practice</h2>
-            <p>The Typing Guide (in the KeyChord menu) shows a text, the chord for the word you're on, what each
-            of its keys stands for, and the keys on the keyboard. If you type part of a word another way, or fix a
-            mistake halfway, it works out the chords for what's left from where you are.</p>
-            <p><a href="keychord://course">The course</a> runs in the Typing Guide one step at a time and remembers
-            which steps you have done. The longer practice texts below go with the parts of this manual:</p>
-            <ol class="lessons">
-            """
-            for (i, l) in Lessons.all.enumerated() {
-                h += "<li><a href=\"keychord://lesson/\(i)\">\(esc(l.title))</a> <span class=\"small\">\(esc(l.summary))</span></li>"
-            }
-            h += """
-            </ol>
+            <p>Choose Words, Lessons, or Voice Practice from the <b>Practice</b> submenu in the menu bar.
+            <a href="keychord://practice">Open Practice</a> resumes your last activity.
+            Lessons teach the English and C++ course and keep your saved progress. Words offers short word sessions or a timer.
+            The keyboard stays below the typing box. Press <b>Hint</b> or <b>⇧⌘H</b> to reveal the current word's keys;
+            hints clear on the next word. Lessons automatically introduce each new combination on its first use.
+            Right Option switches between chords and ordinary typing.</p>
+            <p>Voice reads a word, waits for your typed chord answer, gives spoken feedback, and moves on after a correct answer.
+            Use <b>⇧⌘R</b> to hear it again and <b>⇧⌘H</b> to hear the chord keys. No microphone is needed.</p>
+
+            <h2 id="custom">Custom chords</h2>
+            <p>Open <a href="keychord://custom-chords">Custom Chords</a> to give a word, phrase, or symbol your own
+            key combination. Record keys or choose <b>Find unused chord</b>, enter the text, and choose a language.
+            The before-and-after preview shows each affected combination and language, including its original meaning.
+            <b>Try chord</b> tests the unsaved draft locally; press it twice to check spacing, or choose English or C++ when using both.</p>
+            <p><b>Save chord</b> or <b>Replace chord</b> applies your changes. Turn off <b>Enabled when saved</b> and save to
+            restore the original mapping while keeping your customization. Remove also restores the original mapping.
+            The library labels chords On, Off, or Needs repair; select a chord to see why it needs attention.</p>
+            <p>Choose <b>Words &amp; phrases</b> for normal word spacing and capitalization, or <b>No added spaces</b> for
+            text that attaches on both sides without extra spaces. Caps Lock still applies. Built-in actions and Space keep their existing jobs.</p>
 
             <h2 id="limits">When a chord doesn't work</h2>
-            <p>A keyboard can only report so many keys at once. KeyChord's default rollover limit is six, and some
-            groups of keys may fail even below that limit. The Typing Guide avoids combinations predicted to fail
-            by the available keyboard wiring model and plans alternative chords where possible. The bundled ISO
-            model is based on measurements of a MacBook Pro 2021; the ANSI model is derived from it and has not
-            been measured. Other keyboards may have different limits. Without a wiring model, planning uses the
-            rollover limit alone. When you load your dictionaries, KeyChord reports custom chords that exceed
-            the rollover limit or are predicted to fail by the available model.</p>
+            <p>Some keyboards cannot detect certain keys held together. Practice suggests alternatives for
+            combinations that the available keyboard model predicts will fail. Custom Chords checks these
+            combinations before saving. Other keyboards may behave differently; if a chord doesn't register,
+            try fewer keys or choose a different combination.</p>
             </main></body></html>
             """
             return h
@@ -421,7 +410,6 @@ public enum Manual {
     .cell .keys { white-space: nowrap; }
     .cell .out { font-weight: 600; white-space: pre-wrap; }
     .practice { display:inline-block; margin: 8px 12px 0 0; font-weight: 600; text-decoration: none; }
-    .lessons li { margin: 4px 0; }
     svg.keyboard { width: 100%; height: auto; margin: 8px 0; }
     svg .key { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
     svg .key.onset { fill: color-mix(in srgb, var(--onset) 14%, var(--bg)); stroke: var(--onset); }
